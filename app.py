@@ -417,7 +417,7 @@ def jornadas():
                 enc_ciudadanos, enc_quiz, enc_presaber,
                 enc_ciudadanos, enc_quiz, enc_presaber
             ))
-            nueva_id = cur.fetchone()['id_jornada']
+            nueva_id = cur.fetchone()['ID_JORNADA']
         conn.commit()
         session['jornada_id'] = nueva_id
         flash('Jornada creada y activada')
@@ -501,11 +501,11 @@ def jornadas_detalle(id_jornada):
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM jornadas WHERE ID_JORNADA=%s", (id_jornada,))
         jornada = cur.fetchone()
-        cur.execute("SELECT COUNT(*) AS total FROM encuestas_ciudadanos WHERE ID_JORNADA=%s", (id_jornada,))
+        cur.execute("SELECT COUNT(*) AS TOTAL FROM encuestas_ciudadanos WHERE ID_JORNADA=%s", (id_jornada,))
         total_ciudadanos = cur.fetchone()['TOTAL']
-        cur.execute("SELECT COUNT(*) AS total FROM preguntas WHERE ID_JORNADA=%s", (id_jornada,))
+        cur.execute("SELECT COUNT(*) AS TOTAL FROM preguntas WHERE ID_JORNADA=%s", (id_jornada,))
         total_preguntas = cur.fetchone()['TOTAL']
-        cur.execute("SELECT COUNT(*) AS total FROM presaber WHERE ID_JORNADA=%s", (id_jornada,))
+        cur.execute("SELECT COUNT(*) AS TOTAL FROM presaber WHERE ID_JORNADA=%s", (id_jornada,))
         total_presaber = cur.fetchone()['TOTAL']
     conn.close()
     if not jornada:
@@ -540,11 +540,11 @@ def dashboard(id_jornada):
         # ── TOTALES CORRECTOS ──
         # Presaber = persona única cuando hay Quiz+Presaber
         # Ciudadanos = persona única para jornadas ciudadanas
-        cur.execute("SELECT COUNT(*) AS t FROM encuestas_ciudadanos WHERE ID_JORNADA=%s", (id_jornada,))
+        cur.execute("SELECT COUNT(*) AS T FROM encuestas_ciudadanos WHERE ID_JORNADA=%s", (id_jornada,))
         total_ciudadanos = cur.fetchone()['T']
-        cur.execute("SELECT COUNT(*) AS t FROM preguntas WHERE ID_JORNADA=%s", (id_jornada,))
+        cur.execute("SELECT COUNT(*) AS T FROM preguntas WHERE ID_JORNADA=%s", (id_jornada,))
         total_quiz = cur.fetchone()['T']
-        cur.execute("SELECT COUNT(*) AS t FROM presaber WHERE ID_JORNADA=%s", (id_jornada,))
+        cur.execute("SELECT COUNT(*) AS T FROM presaber WHERE ID_JORNADA=%s", (id_jornada,))
         total_presaber = cur.fetchone()['T']
 
         # Personas únicas: Presaber cuenta como persona cuando hay encuestas servidor
@@ -555,7 +555,7 @@ def dashboard(id_jornada):
 
         # ── DISTRIBUCIÓN POR ORGANISMO (quiz) ──
         cur.execute("""
-            SELECT COALESCE(NOMBRE_ORGANISMO,'Sin organismo') AS org, COUNT(*) AS cnt
+            SELECT COALESCE(NOMBRE_ORGANISMO,'Sin organismo') AS ORG, COUNT(*) AS CNT
             FROM preguntas WHERE ID_JORNADA=%s
             GROUP BY NOMBRE_ORGANISMO ORDER BY cnt DESC
         """, (id_jornada,))
@@ -563,7 +563,7 @@ def dashboard(id_jornada):
 
         # ── DISTRIBUCIÓN POR ORGANISMO (presaber) ──
         cur.execute("""
-            SELECT COALESCE(ORGANISMO,'Sin organismo') AS org, COUNT(*) AS cnt
+            SELECT COALESCE(ORGANISMO,'Sin organismo') AS ORG, COUNT(*) AS CNT
             FROM presaber WHERE ID_JORNADA=%s
             GROUP BY ORGANISMO ORDER BY cnt DESC
         """, (id_jornada,))
@@ -571,14 +571,14 @@ def dashboard(id_jornada):
 
         # ── DISTRIBUCIÓN POR CARGO ──
         cur.execute("""
-            SELECT COALESCE(UPPER(CARGO),'Sin cargo') AS cargo, COUNT(*) AS cnt
+            SELECT COALESCE(UPPER(CARGO),'Sin cargo') AS CARGO, COUNT(*) AS CNT
             FROM preguntas WHERE ID_JORNADA=%s AND CARGO IS NOT NULL AND CARGO!=''
             GROUP BY UPPER(CARGO) ORDER BY cnt DESC LIMIT 15
         """, (id_jornada,))
         dist_cargo_quiz = cur.fetchall()
 
         cur.execute("""
-            SELECT COALESCE(UPPER(CARGO),'Sin cargo') AS cargo, COUNT(*) AS cnt
+            SELECT COALESCE(UPPER(CARGO),'Sin cargo') AS CARGO, COUNT(*) AS CNT
             FROM presaber WHERE ID_JORNADA=%s AND CARGO IS NOT NULL AND CARGO!=''
             GROUP BY UPPER(CARGO) ORDER BY cnt DESC LIMIT 15
         """, (id_jornada,))
@@ -586,14 +586,14 @@ def dashboard(id_jornada):
 
         # ── DISTRIBUCIÓN POR PROFESIÓN ──
         cur.execute("""
-            SELECT COALESCE(UPPER(PROFESION),'Sin profesión') AS prof, COUNT(*) AS cnt
+            SELECT COALESCE(UPPER(PROFESION),'Sin profesión') AS PROF, COUNT(*) AS CNT
             FROM preguntas WHERE ID_JORNADA=%s AND PROFESION IS NOT NULL AND PROFESION!=''
             GROUP BY UPPER(PROFESION) ORDER BY cnt DESC LIMIT 15
         """, (id_jornada,))
         dist_prof_quiz = cur.fetchall()
 
         cur.execute("""
-            SELECT COALESCE(UPPER(PROFESION),'Sin profesión') AS prof, COUNT(*) AS cnt
+            SELECT COALESCE(UPPER(PROFESION),'Sin profesión') AS PROF, COUNT(*) AS CNT
             FROM presaber WHERE ID_JORNADA=%s AND PROFESION IS NOT NULL AND PROFESION!=''
             GROUP BY UPPER(PROFESION) ORDER BY cnt DESC LIMIT 15
         """, (id_jornada,))
@@ -614,13 +614,13 @@ def dashboard(id_jornada):
         if total_quiz > 0:
             for col, correcta in CORRECTAS_QUIZ.items():
                 cur.execute(f"""
-                    SELECT {col} AS resp, COUNT(*) AS cnt
+                    SELECT {col} AS RESP, COUNT(*) AS CNT
                     FROM preguntas WHERE ID_JORNADA=%s AND {col} IS NOT NULL
                     GROUP BY {col}
                 """, (id_jornada,))
                 rows = cur.fetchall()
-                total_resp = sum(r['cnt'] for r in rows)
-                correctas = sum(r['cnt'] for r in rows if r['resp'] and correcta.lower() in r['resp'].lower())
+                total_resp = sum(r['CNT'] for r in rows)
+                correctas = sum(r['CNT'] for r in rows if r['RESP'] and correcta.lower() in r['RESP'].lower())
                 quiz_stats[col] = {
                     'correctas': correctas,
                     'incorrectas': total_resp - correctas,
@@ -643,14 +643,14 @@ def dashboard(id_jornada):
         if total_presaber > 0:
             for col, label in PRESABER_LABELS.items():
                 cur.execute(f"""
-                    SELECT {col} AS resp, COUNT(*) AS cnt
+                    SELECT {col} AS RESP, COUNT(*) AS CNT
                     FROM presaber WHERE ID_JORNADA=%s AND {col} IS NOT NULL
                     GROUP BY {col}
                 """, (id_jornada,))
                 rows = cur.fetchall()
-                total_r = sum(r['cnt'] for r in rows)
-                si = sum(r['cnt'] for r in rows if r['resp'] == 'SI')
-                no = sum(r['cnt'] for r in rows if r['resp'] == 'NO')
+                total_r = sum(r['CNT'] for r in rows)
+                si = sum(r['CNT'] for r in rows if r['RESP'] == 'SI')
+                no = sum(r['CNT'] for r in rows if r['RESP'] == 'NO')
                 presaber_stats[col] = {
                     'label': label,
                     'si': si, 'no': no, 'total': total_r,
@@ -672,14 +672,14 @@ def dashboard(id_jornada):
         if total_ciudadanos > 0:
             for col, label in CIUDADANOS_LABELS.items():
                 cur.execute(f"""
-                    SELECT {col} AS resp, COUNT(*) AS cnt
+                    SELECT {col} AS RESP, COUNT(*) AS CNT
                     FROM encuestas_ciudadanos WHERE ID_JORNADA=%s AND {col} IS NOT NULL
                     GROUP BY {col}
                 """, (id_jornada,))
                 rows = cur.fetchall()
-                total_r = sum(r['cnt'] for r in rows)
-                si = sum(r['cnt'] for r in rows if str(r['resp']).upper() in ('SI','1'))
-                no = sum(r['cnt'] for r in rows if str(r['resp']).upper() in ('NO','0'))
+                total_r = sum(r['CNT'] for r in rows)
+                si = sum(r['CNT'] for r in rows if str(r['RESP']).upper() in ('SI','1'))
+                no = sum(r['CNT'] for r in rows if str(r['RESP']).upper() in ('NO','0'))
                 ciudadanos_stats[col] = {
                     'label': label,
                     'si': si, 'no': no, 'total': total_r,
@@ -689,26 +689,26 @@ def dashboard(id_jornada):
 
         # ── CAPACITACIÓN (quiz y presaber) ──
         cur.execute("""
-            SELECT CAPACITACION_LEY_DISCIPLINARIA AS resp, COUNT(*) AS cnt
+            SELECT CAPACITACION_LEY_DISCIPLINARIA AS RESP, COUNT(*) AS CNT
             FROM preguntas WHERE ID_JORNADA=%s AND CAPACITACION_LEY_DISCIPLINARIA IS NOT NULL
             GROUP BY CAPACITACION_LEY_DISCIPLINARIA
         """, (id_jornada,))
-        cap_quiz = {r['resp']: r['cnt'] for r in cur.fetchall()}
+        cap_quiz = {r['RESP']: r['CNT'] for r in cur.fetchall()}
 
         cur.execute("""
-            SELECT CAPACITACION_LEY AS resp, COUNT(*) AS cnt
+            SELECT CAPACITACION_LEY AS RESP, COUNT(*) AS CNT
             FROM presaber WHERE ID_JORNADA=%s AND CAPACITACION_LEY IS NOT NULL
             GROUP BY CAPACITACION_LEY
         """, (id_jornada,))
-        cap_presaber = {r['resp']: r['cnt'] for r in cur.fetchall()}
+        cap_presaber = {r['RESP']: r['CNT'] for r in cur.fetchall()}
 
         # ── SERVIDOR PUBLICO ──
         cur.execute("""
-            SELECT SERVIDOR_PUBLICO_PLANTA AS resp, COUNT(*) AS cnt
+            SELECT SERVIDOR_PUBLICO_PLANTA AS RESP, COUNT(*) AS CNT
             FROM preguntas WHERE ID_JORNADA=%s AND SERVIDOR_PUBLICO_PLANTA IS NOT NULL
             GROUP BY SERVIDOR_PUBLICO_PLANTA
         """, (id_jornada,))
-        servidor_quiz = {r['resp']: r['cnt'] for r in cur.fetchall()}
+        servidor_quiz = {r['RESP']: r['CNT'] for r in cur.fetchall()}
 
     conn.close()
 
@@ -769,34 +769,34 @@ def api_sugerencias():
     with conn.cursor() as cur:
         # Cargos de preguntas y presaber
         cur.execute("""
-            SELECT DISTINCT UPPER(CARGO) AS val FROM preguntas WHERE CARGO IS NOT NULL AND CARGO != ''
+            SELECT DISTINCT UPPER(CARGO) AS VAL FROM preguntas WHERE CARGO IS NOT NULL AND CARGO != ''
             UNION
             SELECT DISTINCT UPPER(CARGO) FROM presaber WHERE CARGO IS NOT NULL AND CARGO != ''
             ORDER BY val
         """)
-        cargos = [r['val'] for r in cur.fetchall()]
+        cargos = [r['VAL'] for r in cur.fetchall()]
         # Profesiones de preguntas y presaber
         cur.execute("""
-            SELECT DISTINCT UPPER(PROFESION) AS val FROM preguntas WHERE PROFESION IS NOT NULL AND PROFESION != ''
+            SELECT DISTINCT UPPER(PROFESION) AS VAL FROM preguntas WHERE PROFESION IS NOT NULL AND PROFESION != ''
             UNION
             SELECT DISTINCT UPPER(PROFESION) FROM presaber WHERE PROFESION IS NOT NULL AND PROFESION != ''
             ORDER BY val
         """)
-        profesiones = [r['val'] for r in cur.fetchall()]
+        profesiones = [r['VAL'] for r in cur.fetchall()]
         # Estudios de ciudadanos
         cur.execute("""
-            SELECT DISTINCT UPPER(ESTUDIOS) AS val FROM encuestas_ciudadanos
+            SELECT DISTINCT UPPER(ESTUDIOS) AS VAL FROM encuestas_ciudadanos
             WHERE ESTUDIOS IS NOT NULL AND ESTUDIOS != ''
             ORDER BY val
         """)
-        estudios = [r['val'] for r in cur.fetchall()]
+        estudios = [r['VAL'] for r in cur.fetchall()]
         # Ocupaciones de ciudadanos
         cur.execute("""
-            SELECT DISTINCT UPPER(OCUPACION) AS val FROM encuestas_ciudadanos
+            SELECT DISTINCT UPPER(OCUPACION) AS VAL FROM encuestas_ciudadanos
             WHERE OCUPACION IS NOT NULL AND OCUPACION != ''
             ORDER BY val
         """)
-        ocupaciones = [r['val'] for r in cur.fetchall()]
+        ocupaciones = [r['VAL'] for r in cur.fetchall()]
     conn.close()
     return jsonify({
         'cargos': cargos,
