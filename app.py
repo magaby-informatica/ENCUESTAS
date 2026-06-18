@@ -261,7 +261,7 @@ def login():
             conn = get_connection()
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT * FROM usuarios WHERE USUARIO=%s AND PASSWORD=%s AND ESTADO=TRUE",
+                    "SELECT * FROM usuarios WHERE USUARIO=%s AND PASSWORD=%s AND ESTADO=1",
                     (usuario, password)
                 )
                 user = cur.fetchone()
@@ -502,11 +502,11 @@ def jornadas_detalle(id_jornada):
         cur.execute("SELECT * FROM jornadas WHERE ID_JORNADA=%s", (id_jornada,))
         jornada = cur.fetchone()
         cur.execute("SELECT COUNT(*) AS total FROM encuestas_ciudadanos WHERE ID_JORNADA=%s", (id_jornada,))
-        total_ciudadanos = cur.fetchone()['total']
+        total_ciudadanos = cur.fetchone()['TOTAL']
         cur.execute("SELECT COUNT(*) AS total FROM preguntas WHERE ID_JORNADA=%s", (id_jornada,))
-        total_preguntas = cur.fetchone()['total']
+        total_preguntas = cur.fetchone()['TOTAL']
         cur.execute("SELECT COUNT(*) AS total FROM presaber WHERE ID_JORNADA=%s", (id_jornada,))
-        total_presaber = cur.fetchone()['total']
+        total_presaber = cur.fetchone()['TOTAL']
     conn.close()
     if not jornada:
         flash('Jornada no encontrada')
@@ -541,11 +541,11 @@ def dashboard(id_jornada):
         # Presaber = persona única cuando hay Quiz+Presaber
         # Ciudadanos = persona única para jornadas ciudadanas
         cur.execute("SELECT COUNT(*) AS t FROM encuestas_ciudadanos WHERE ID_JORNADA=%s", (id_jornada,))
-        total_ciudadanos = cur.fetchone()['t']
+        total_ciudadanos = cur.fetchone()['T']
         cur.execute("SELECT COUNT(*) AS t FROM preguntas WHERE ID_JORNADA=%s", (id_jornada,))
-        total_quiz = cur.fetchone()['t']
+        total_quiz = cur.fetchone()['T']
         cur.execute("SELECT COUNT(*) AS t FROM presaber WHERE ID_JORNADA=%s", (id_jornada,))
-        total_presaber = cur.fetchone()['t']
+        total_presaber = cur.fetchone()['T']
 
         # Personas únicas: Presaber cuenta como persona cuando hay encuestas servidor
         # Ciudadanos cuenta cuando hay encuestas ciudadanas
