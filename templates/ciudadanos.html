@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Encuesta Ciudadanos{% endblock %}
+{% block content %}
+<h1>Encuesta Ciudadanos</h1>
+
+{% if jornada %}
+<p style="background:#e8f0fe; padding:10px; border-radius:6px; font-size:14px;">
+    Jornada: <strong>{{ jornada.NOMBRE }}</strong> |
+    Lugar: <strong>{{ jornada.LUGAR or '-' }}</strong>
+</p>
+{% endif %}
+
+<form method="post">
+    {% if jornada %}
+        <input type="hidden" name="id_jornada" value="{{ jornada.ID_JORNADA }}">
+    {% else %}
+        <label>Jornada</label>
+        <select name="id_jornada">
+            <option value="">-- Sin jornada --</option>
+            {% for j in jornadas_disponibles %}
+            <option value="{{ j.ID_JORNADA }}">{{ j.NOMBRE }} ({{ j.FECHA }})</option>
+            {% endfor %}
+        </select>
+    {% endif %}
+
+    <label>Fecha</label>
+    <input type="date" name="fecha" value="{{ today }}">
+
+    <label>Estudios</label>
+    <input type="text" name="estudios" list="dl-estudios" autocomplete="off">
+
+    <label>Ocupación</label>
+    <input type="text" name="ocupacion" list="dl-ocupacion" autocomplete="off">
+
+    <label>Pregunta 1 (SI/NO)</label>
+    <div class="radio-group">
+        <label><input type="radio" name="pregunta_1" value="SI" required> SI</label>
+        <label><input type="radio" name="pregunta_1" value="NO"> NO</label>
+    </div>
+
+    <label>Pregunta 2</label>
+    <div class="radio-group">
+        <label><input type="radio" name="pregunta_2" value="SI" required> SI</label>
+        <label><input type="radio" name="pregunta_2" value="NO"> NO</label>
+    </div>
+
+    <label>Pregunta 3 (SI/NO)</label>
+    <div class="radio-group">
+        <label><input type="radio" name="pregunta_3" value="SI" required> SI</label>
+        <label><input type="radio" name="pregunta_3" value="NO"> NO</label>
+    </div>
+
+    <label>Pregunta 4 (SI/NO)</label>
+    <div class="radio-group">
+        <label><input type="radio" name="pregunta_4" value="SI" required> SI</label>
+        <label><input type="radio" name="pregunta_4" value="NO"> NO</label>
+    </div>
+
+    <label>Pregunta 5 (SI/NO)</label>
+    <div class="radio-group">
+        <label><input type="radio" name="pregunta_5" value="SI" required> SI</label>
+        <label><input type="radio" name="pregunta_5" value="NO"> NO</label>
+    </div>
+
+    <label>Pregunta 6 (SI/NO)</label>
+    <div class="radio-group">
+        <label><input type="radio" name="pregunta_6" value="SI" required> SI</label>
+        <label><input type="radio" name="pregunta_6" value="NO"> NO</label>
+    </div>
+
+    <label>Pregunta 7 (SI/NO)</label>
+    <div class="radio-group">
+        <label><input type="radio" name="pregunta_7" value="SI" required> SI</label>
+        <label><input type="radio" name="pregunta_7" value="NO"> NO</label>
+    </div>
+
+    <button type="submit">Guardar</button>
+</form>
+{% include '_autocomplete.html' %}
+{% endblock %}

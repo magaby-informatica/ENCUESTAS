@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Resumen — {{ jornada_nombre }}{% endblock %}
+{% block content %}
+
+<div style="text-align:center; margin-bottom:24px;">
+    <div style="font-size:48px;">✅</div>
+    <h1 style="margin:8px 0 4px;">¡Encuestas completadas!</h1>
+    <p style="color:#555;">Gracias por participar en <strong>{{ jornada_nombre }}</strong>. Aquí está el resumen de tus respuestas.</p>
+</div>
+
+{% for bloque in respuestas %}
+<div style="background:#f8f9fc; border-radius:10px; padding:18px 20px; margin-bottom:18px;">
+    <h2 style="margin:0 0 12px; font-size:16px; color:#1a4f7a;">📋 {{ bloque.titulo }}</h2>
+    <table>
+        {% for pregunta, respuesta in bloque.pares %}
+        <tr>
+            <td style="width:55%; font-weight:bold; color:#444;">{{ pregunta }}</td>
+            <td>{{ respuesta if respuesta else '—' }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endfor %}
+
+<div style="text-align:center; margin-top:24px;">
+    <a href="{{ url_for('finalizar_invitado') }}" class="btn" style="font-size:16px; padding:14px 32px;">
+        Finalizar y salir
+    </a>
+</div>
+
+{% endblock %}

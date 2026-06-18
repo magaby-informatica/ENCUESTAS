@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Encuesta Quiz{% endblock %}
+{% block content %}
+<h1>Encuesta - Ley Disciplinaria (Quiz)</h1>
+
+{% if jornada %}
+<p style="background:#e8f0fe; padding:10px; border-radius:6px; font-size:14px;">
+    Jornada: <strong>{{ jornada.NOMBRE }}</strong> |
+    Organismo: <strong>{{ jornada.NOMBRE_ORGANISMO or '-' }}</strong>
+    {% if jornada.NOM_INS_EDUCATIVA %}
+     | I.E.: <strong>{{ jornada.NOM_INS_EDUCATIVA }}</strong>
+    {% endif %}
+</p>
+{% endif %}
+
+<form method="post">
+    <!-- Jornada: fija si viene de sesión, seleccionable si no -->
+    {% if jornada %}
+        <input type="hidden" name="id_jornada" value="{{ jornada.ID_JORNADA }}">
+    {% else %}
+        <label>Jornada</label>
+        <select name="id_jornada">
+            <option value="">-- Sin jornada --</option>
+            {% for j in jornadas_disponibles %}
+            <option value="{{ j.ID_JORNADA }}">{{ j.NOMBRE }} ({{ j.FECHA }})</option>
+            {% endfor %}
+        </select>
+    {% endif %}
+
+    <label>Fecha</label>
+    <input type="date" name="fecha" value="{{ today }}">
+
+    <label>¿Servidor público de planta?</label>
+    <div class="radio-group">
+        <label><input type="radio" name="servidor_publico" value="SI" required> SI</label>
+        <label><input type="radio" name="servidor_publico" value="NO"> NO</label>
+    </div>
+
+    <label>Cargo</label>
+    <input type="text" name="cargo" list="dl-cargo" autocomplete="off">
+
+    <label>Profesión</label>
+    <input type="text" name="profesion" list="dl-profesion" autocomplete="off">
+
+    <!-- Organismo: prellenado y bloqueado si viene de jornada -->
+    <label>Organismo</label>
+    {% if jornada and jornada.ORGANISMO_ID %}
+        <input type="text" value="{{ jornada.NOMBRE_ORGANISMO }}" readonly
+               style="background:#f0f0f0; color:#555;">
+        <input type="hidden" name="organismo_p" value="{{ jornada.ORGANISMO_ID }}">
+    {% else %}
+        <select name="organismo_p" id="organismo_p" onchange="checkEducacionPreguntas()">
+            <option value="">-- Seleccione --</option>
+            {% for o in organismos %}
+            <option value="{{ o.ID_ORGANISMO }}">{{ o.ORGANISMO }}</option>
+            {% endfor %}
+        </select>
+    {% endif %}
+
+    <!-- Institución Educativa: prellenada y bloqueada si viene de jornada -->
+    {% if jornada and jornada.ORGANISMO_ID %}
+        {% if jornada.NOM_INS_EDUCATIVA %}
+        <label>Institución Educativa</label>
+        <input type="text" value="{{ jornada.NOM_INS_EDUCATIVA }}" readonly
+               style="background:#f0f0f0; color:#555;">
+        <input type="hidden" name="institucion_educativa" value="{{ jornada.INSTITUCION_EDUCATIVA_ID }}">
+        {% endif %}
+    {% else %}
+        <div id="contenedor_ie_preguntas" style="display:none;">
+            <label>Institución Educativa (solo si Secretaría de Educación)</label>
+            <select name="institucion_educativa">
+                <option value="">-- N/A --</option>
+                {% for i in instituciones %}
+                <option value="{{ i.ITEM }}">{{ i.INSTITUCION_EDUCATIVA }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <script>
+        function checkEducacionPreguntas() {
+            const sel = document.getElementById('organismo_p');
+            const contenedor = document.getElementById('contenedor_ie_preguntas');
+            if (!sel.value) { contenedor.style.display = 'none'; return; }
+            fetch('/api/organismo_es_educacion/' + sel.value)
+                .then(r => r.json())
+                .then(data => { contenedor.style.display = data.es_educacion ? 'block' : 'none'; });
+        }
+        </script>
+    {% endif %}
+
+    <label>¿Ha recibido capacitación en la Ley Disciplinaria?</label>
+    <div class="radio-group">
+        <label><input type="radio" name="capacitacion" value="SI" required> SI</label>
+        <label><input type="radio" name="capacitacion" value="NO"> NO</label>
+    </div>
+
+    <label>1. ¿Qué funciones adelanta el Departamento Administrativo de Control Disciplinario Interno de Instrucción?</label>
+    <select name="p1" required>
+        <option value="">-- Seleccione --</option>
+        <option value="a) Reformatoria, preventiva">a) Reformatoria, preventiva</option>
+        <option value="b) Preventiva, Correctiva">b) Preventiva, Correctiva</option>
+        <option value="c) Instructiva, preventiva">c) Instructiva, preventiva</option>
+        <option value="d) Ninguna de las anteriores">d) Ninguna de las anteriores</option>
+    </select>
+
+    <label>2. ¿Mediante qué procedimientos se puede adelantar la acción disciplinaria?</label>
+    <select name="p2" required>
+        <option value="">-- Seleccione --</option>
+        <option value="a) Verbal y Ordinario conforme a la Ley 2094 de 2021">a) Verbal y Ordinario conforme a la Ley 2094 de 2021 modificó la Ley 1952 de 2019</option>
+        <option value="b) Ordinario y Sancionatorio">b) Ordinario y Sancionatorio</option>
+        <option value="c) Verbal conforme a la Ley 1952 de 2019">c) Verbal conforme a la Ley 1952 de 2019 Código General Disciplinario.</option>
+        <option value="d) a y c son correctas">d) a y c son correctas</option>
+    </select>
+
+    <label>3. Las faltas disciplinarias se clasifican en:</label>
+    <select name="p3" required>
+        <option value="">-- Seleccione --</option>
+        <option value="a) Sancionatoria y no sancionatoria">a) Sancionatoria y no sancionatoria</option>
+        <option value="b) dolosa y culposa">b) dolosa y culposa</option>
+        <option value="c) Gravísimas, Graves y Leves">c) Gravísimas, Graves y Leves</option>
+        <option value="d) Todas las anteriores">d) Todas las anteriores</option>
+    </select>
+
+    <label>4. ¿Quiénes son sujetos disciplinables?</label>
+    <select name="p4" required>
+        <option value="">-- Seleccione --</option>
+        <option value="a) Servidores públicos, aunque se encuentren retirados del servicio">a) Servidores públicos, aunque se encuentren retirados del servicio y particulares contemplados en la ley disciplinaria.</option>
+        <option value="b) Empleados públicos, trabajadores Oficiales y particulares.">b) Empleados públicos, trabajadores Oficiales y particulares.</option>
+        <option value="c) Empleados públicos, elección popular y contratistas.">c) Empleados públicos, elección popular y contratistas.</option>
+        <option value="d) Ninguna de las anteriores.">d) Ninguna de las anteriores.</option>
+    </select>
+
+    <label>5. ¿Cuáles son medios de prueba en la acción disciplinaria?</label>
+    <select name="p5" required>
+        <option value="">-- Seleccione --</option>
+        <option value="a) la confesión y el testimonio">a) la confesión y el testimonio</option>
+        <option value="b) Inspección disciplinaria y peritación">b) Inspección disciplinaria y peritación</option>
+        <option value="c) documentos e inspección disciplinaria">c) documentos e inspección disciplinaria</option>
+        <option value="d) Todas las anteriores">d) Todas las anteriores</option>
+    </select>
+
+    <label>6. ¿Quiénes ejercen la acción disciplinaria?</label>
+    <select name="p6" required>
+        <option value="">-- Seleccione --</option>
+        <option value="a) Procuraduría General de la Nación, Personerías Municipales y Distritales">a) Procuraduría General de la Nación, Personerías Municipales y Distritales, Oficinas de Control Disciplinario Interno.</option>
+        <option value="b) Contaduría General de la Nación, Personerías Municipales">b) Contaduría General de la Nación, Personerías Municipales, Oficinas de Control Disciplinario Interno</option>
+        <option value="c) Control Interno, Personerías Municipales">c) Control Interno, Personerías Municipales</option>
+        <option value="d) Ninguna de las anteriores.">d) Ninguna de las anteriores.</option>
+    </select>
+
+    <label>7. Una diferencia entre Control Disciplinario Interno de Instrucción y Control Interno:</label>
+    <select name="p7" required>
+        <option value="">-- Seleccione --</option>
+        <option value="a) Pertenece a la Administración Central Municipal / No pertenece">a) Pertenece a la Administración Central Municipal / No pertenece a la Administración Central Municipal</option>
+        <option value="b) Tiene poder sancionatorio / No tiene poder sancionatorio">b) Tiene poder sancionatorio / No tiene poder sancionatorio</option>
+        <option value="c) Realiza control interno / Realiza control externo">c) Realiza control interno / Realiza control externo</option>
+        <option value="d) Ninguna de las anteriores.">d) Ninguna de las anteriores.</option>
+    </select>
+
+    <label>8. El Auto Inhibitorio que profiera el Departamento Administrativo de Control Disciplinario:</label>
+    <select name="p8" required>
+        <option value="">-- Seleccione --</option>
+        <option value="a) Admitir recursos y hace tránsito a cosa juzgada.">a) Admitir recursos y hace tránsito a cosa juzgada.</option>
+        <option value="b) se puede volver a iniciar el proceso disciplinario">b) se puede volver a iniciar el proceso disciplinario si reúne los requisitos de la queja.</option>
+        <option value="c) NO hace tránsito a cosa juzgada y admite recursos.">c) NO hace tránsito a cosa juzgada y admite recursos.</option>
+        <option value="d) b y c son correctas.">d) b y c son correctas.</option>
+    </select>
+
+    <button type="submit">Guardar</button>
+</form>
+{% include '_autocomplete.html' %}
+{% endblock %}

@@ -1,0 +1,39 @@
+{# Bloque reutilizable: mayúsculas automáticas + datalist de sugerencias #}
+{# Incluir con: {% include '_autocomplete.html' %} al final del form #}
+
+<!-- Datalists para sugerencias -->
+<datalist id="dl-cargo"></datalist>
+<datalist id="dl-profesion"></datalist>
+<datalist id="dl-estudios"></datalist>
+<datalist id="dl-ocupacion"></datalist>
+
+<script>
+// ── Mayúsculas automáticas en todos los inputs y textareas del form ──
+document.querySelectorAll('input[type=text], input[type=search], textarea').forEach(function(el) {
+    el.addEventListener('input', function() {
+        var pos = this.selectionStart;
+        this.value = this.value.toUpperCase();
+        this.setSelectionRange(pos, pos);
+    });
+});
+
+// ── Cargar sugerencias desde la API ──
+fetch('/api/sugerencias')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        function llenar(id, lista) {
+            var dl = document.getElementById(id);
+            if (!dl) return;
+            dl.innerHTML = '';
+            lista.forEach(function(v) {
+                var opt = document.createElement('option');
+                opt.value = v;
+                dl.appendChild(opt);
+            });
+        }
+        llenar('dl-cargo',      data.cargos);
+        llenar('dl-profesion',  data.profesiones);
+        llenar('dl-estudios',   data.estudios);
+        llenar('dl-ocupacion',  data.ocupaciones);
+    });
+</script>

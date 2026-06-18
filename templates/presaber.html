@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Encuesta Presaber{% endblock %}
+{% block content %}
+<h1>Encuesta Presaber</h1>
+
+{% if jornada %}
+<p style="background:#e8f0fe; padding:10px; border-radius:6px; font-size:14px;">
+    Jornada: <strong>{{ jornada.NOMBRE }}</strong> |
+    Organismo: <strong>{{ jornada.NOMBRE_ORGANISMO or '-' }}</strong>
+    {% if jornada.NOM_INS_EDUCATIVA %}
+     | I.E.: <strong>{{ jornada.NOM_INS_EDUCATIVA }}</strong>
+    {% endif %}
+</p>
+{% endif %}
+
+<form method="post">
+    {% if jornada %}
+        <input type="hidden" name="id_jornada" value="{{ jornada.ID_JORNADA }}">
+    {% else %}
+        <label>Jornada</label>
+        <select name="id_jornada">
+            <option value="">-- Sin jornada --</option>
+            {% for j in jornadas_disponibles %}
+            <option value="{{ j.ID_JORNADA }}">{{ j.NOMBRE }} ({{ j.FECHA }})</option>
+            {% endfor %}
+        </select>
+    {% endif %}
+
+    <label>Fecha</label>
+    <input type="date" name="fecha" value="{{ today }}">
+
+    <label>¿Servidor público de planta?</label>
+    <div class="radio-group">
+        <label><input type="radio" name="servidor_publico" value="SI" required> SI</label>
+        <label><input type="radio" name="servidor_publico" value="NO"> NO</label>
+    </div>
+
+    <label>Cargo</label>
+    <input type="text" name="cargo" list="dl-cargo" autocomplete="off">
+
+    <label>Profesión</label>
+    <input type="text" name="profesion" list="dl-profesion" autocomplete="off">
+
+    <!-- Organismo: prellenado y bloqueado si viene de jornada -->
+    <label>Organismo</label>
+    {% if jornada and jornada.NOMBRE_ORGANISMO %}
+        <input type="text" value="{{ jornada.NOMBRE_ORGANISMO }}" readonly
+               style="background:#f0f0f0; color:#555;">
+        <input type="hidden" name="organismo" value="{{ jornada.NOMBRE_ORGANISMO }}">
+    {% else %}
+        <select name="organismo" id="organismo_presaber" onchange="checkEducacionPresaber()">
+            <option value="">-- Seleccione --</option>
+            {% for o in organismos %}
+            <option value="{{ o.ORGANISMO }}">{{ o.ORGANISMO }}</option>
+            {% endfor %}
+        </select>
+    {% endif %}
+
+    <!-- Institución Educativa: prellenada y bloqueada si viene de jornada -->
+    <label>Institución Educativa</label>
+    {% if jornada and jornada.NOMBRE_ORGANISMO %}
+        {% if jornada.NOM_INS_EDUCATIVA %}
+        <input type="text" value="{{ jornada.NOM_INS_EDUCATIVA }}" readonly
+               style="background:#f0f0f0; color:#555;">
+        <input type="hidden" name="institucion_educativa" value="{{ jornada.NOM_INS_EDUCATIVA }}">
+        {% else %}
+        <input type="text" value="No aplica" readonly style="background:#f0f0f0; color:#999;">
+        <input type="hidden" name="institucion_educativa" value="">
+        {% endif %}
+    {% else %}
+        <div id="contenedor_ie_presaber" style="display:none;">
+            <select name="institucion_educativa">
+                <option value="">-- N/A --</option>
+                {% for i in instituciones %}
+                <option value="{{ i.INSTITUCION_EDUCATIVA }}">{{ i.INSTITUCION_EDUCATIVA }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <script>
+        function checkEducacionPresaber() {
+            const val = document.getElementById('organismo_presaber').value.toUpperCase();
+            const contenedor = document.getElementById('contenedor_ie_presaber');
+            contenedor.style.display = val.includes('SECRETARIA DE EDUCACION') ? 'block' : 'none';
+        }
+        </script>
+    {% endif %}
+
+    <label>¿Ha recibido capacitación en la Ley Disciplinaria?</label>
+    <select name="capacitacion">
+        <option value="SI">SI</option>
+        <option value="NO">NO</option>
+    </select>
+
+    <label>¿Cuántas capacitaciones ha recibido?</label>
+    <input type="number" name="cuantas" min="0">
+
+    <h2>¿Cuáles de las siguientes considera que son faltas disciplinarias? (SI / NO)</h2>
+
+    <label>1. No tratar con respeto, imparcialidad y rectitud a las personas con quienes tenga relación por razón del servicio</label>
+    <select name="q1"><option value="SI">SI</option><option value="NO">NO</option></select>
+
+    <label>2. Solicitar directa o indirectamente dádivas, agasajos, regalos, favores o cualquier otra clase de beneficio</label>
+    <select name="q2"><option value="SI">SI</option><option value="NO">NO</option></select>
+
+    <label>3. Ejecutar actos de violencia contra superiores, subalternos o compañeros de trabajo, demás servidores públicos o injuriarlos o calumniarlos</label>
+    <select name="q3"><option value="SI">SI</option><option value="NO">NO</option></select>
+
+    <label>4. No dedicar la totalidad del tiempo reglamentario de trabajo al desempeño de las funciones encomendadas, salvo las excepciones legales</label>
+    <select name="q4"><option value="SI">SI</option><option value="NO">NO</option></select>
+
+    <label>5. Incumplir con el horario de trabajo establecido por la Alcaldía Distrital de Santiago de Cali</label>
+    <select name="q5"><option value="SI">SI</option><option value="NO">NO</option></select>
+
+    <label>6. Omitir, retardar o no suministrar debida y oportuna respuesta a las peticiones respetuosas de los particulares o a solicitudes de las autoridades</label>
+    <select name="q6"><option value="SI">SI</option><option value="NO">NO</option></select>
+
+    <label>7. No acreditar los requisitos exigidos por la ley para la posesión y el desempeño del cargo</label>
+    <select name="q7"><option value="SI">SI</option><option value="NO">NO</option></select>
+
+    <label>8. No capacitarse y actualizarse en el área donde desempeña su función</label>
+    <select name="q8"><option value="SI">SI</option><option value="NO">NO</option></select>
+
+    <button type="submit">Guardar</button>
+</form>
+{% include '_autocomplete.html' %}
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Organismos{% endblock %}
+{% block content %}
+<h1>Organismos</h1>
+<form method="post">
+    <label>Nuevo organismo</label>
+    <input type="text" name="organismo" required>
+    <button type="submit">Agregar</button>
+</form>
+<table>
+<tr><th>ID</th><th>Organismo</th><th></th></tr>
+{% for r in registros %}
+<tr>
+    <td>{{ r.ID_ORGANISMO }}</td>
+    <td>{{ r.ORGANISMO }}</td>
+    <td><a class="btn" href="{{ url_for('organismos_eliminar', id_organismo=r.ID_ORGANISMO) }}">Eliminar</a></td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Usuarios{% endblock %}
+{% block content %}
+<h1>Gestión de Usuarios</h1>
+
+<h2>Agregar nuevo usuario</h2>
+<form method="post" style="max-width:500px;">
+    <label>Usuario</label>
+    <input type="text" name="usuario" required>
+
+    <label>Contraseña</label>
+    <input type="text" name="password" required>
+
+    <label>Rol</label>
+    <select name="rol">
+        {% for r in roles %}
+        <option value="{{ r.IDROL }}">{{ r.ROL }}</option>
+        {% endfor %}
+    </select>
+
+    <button type="submit">Agregar usuario</button>
+</form>
+
+<h2 style="margin-top:28px;">Usuarios registrados</h2>
+<p style="font-size:13px; color:#666;">Edita los campos directamente en la tabla y presiona "Guardar" en la fila correspondiente.</p>
+<table>
+<tr>
+    <th>ID</th>
+    <th>Usuario</th>
+    <th>Contraseña</th>
+    <th>Rol</th>
+    <th>Estado</th>
+    <th>Acciones</th>
+</tr>
+{% for r in registros %}
+<tr>
+    <form action="{{ url_for('usuarios_editar', idusuario=r.IDUSUARIO) }}"
+          method="post" style="display:contents;">
+    <td>{{ r.IDUSUARIO }}</td>
+    <td>
+        <input type="text" name="usuario" value="{{ r.USUARIO }}" required
+               style="margin:0; padding:4px; font-size:13px;">
+    </td>
+    <td>
+        <input type="text" name="password" placeholder="(sin cambios)"
+               style="margin:0; padding:4px; font-size:13px;">
+    </td>
+    <td>
+        <select name="rol" style="margin:0; padding:4px; font-size:13px;">
+            {% for rol in roles %}
+            <option value="{{ rol.IDROL }}" {{ 'selected' if rol.IDROL == r.ROL else '' }}>
+                {{ rol.ROL }}
+            </option>
+            {% endfor %}
+        </select>
+    </td>
+    <td>
+        {% if r.ESTADO %}
+        <span class="badge badge-activa">Activo</span>
+        {% else %}
+        <span class="badge badge-cerrada">Inactivo</span>
+        {% endif %}
+    </td>
+    <td style="white-space:nowrap;">
+        <button type="submit" class="btn"
+                style="padding:5px 10px; font-size:12px; margin-top:0;">
+            💾 Guardar
+        </button>
+    </form>
+
+        <a class="btn" href="{{ url_for('usuarios_toggle', idusuario=r.IDUSUARIO) }}"
+           style="padding:5px 10px; font-size:12px; margin-top:0; background:{{ '#888' if r.ESTADO else '#34a853' }};">
+           {{ '⏸' if r.ESTADO else '▶' }}
+        </a>
+
+        {% if r.IDUSUARIO != session.usuario_id %}
+        <a class="btn" href="{{ url_for('usuarios_eliminar', idusuario=r.IDUSUARIO) }}"
+           style="padding:5px 10px; font-size:12px; margin-top:0; background:#c0392b;"
+           onclick="return confirm('¿Eliminar usuario {{ r.USUARIO }}? Esta acción no se puede deshacer.')">
+           🗑
+        </a>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

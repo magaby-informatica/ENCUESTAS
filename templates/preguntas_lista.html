@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Respuestas Preguntas{% endblock %}
+{% block content %}
+<h1>Respuestas - Encuesta Ley Disciplinaria</h1>
+<table>
+<tr>
+    <th>Jornada</th><th>Fecha</th><th>Usuario</th><th>Organismo</th><th>Institución Ed.</th>
+    <th>Cargo</th><th>Profesión</th><th>Capacitación</th>
+    <th>P1</th><th>P2</th><th>P3</th><th>P4</th><th>P5</th><th>P6</th><th>P7</th><th>P8</th>
+</tr>
+{% for r in registros %}
+<tr>
+    <td>{{ r.NOMBRE_JORNADA or '-' }}</td>
+    <td>{{ r.FECHA }}</td>
+    <td>{{ r.USUARIO }}</td>
+    <td>{{ r.NOMBRE_ORGANISMO }}</td>
+    <td>{{ r.NOM_INS_EDUCATIVA }}</td>
+    <td>{{ r.CARGO }}</td>
+    <td>{{ r.PROFESION }}</td>
+    <td>{{ r.CAPACITACION_LEY_DISCIPLINARIA }}</td>
+    <td>{{ r.P1 }}</td>
+    <td>{{ r.P2 }}</td>
+    <td>{{ r.P3 }}</td>
+    <td>{{ r.P4 }}</td>
+    <td>{{ r.P5 }}</td>
+    <td>{{ r.P6 }}</td>
+    <td>{{ r.P7 }}</td>
+    <td>{{ r.P8 }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

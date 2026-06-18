@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Respuestas Presaber{% endblock %}
+{% block content %}
+<h1>Respuestas - Encuesta Presaber</h1>
+<table>
+<tr>
+    <th>Jornada</th><th>Año</th><th>Mes</th><th>Fecha</th><th>Usuario</th><th>Organismo</th>
+    <th>Institución</th><th>Cargo</th><th>Profesión</th><th>Capacitación</th><th>Cuántas</th>
+    <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Q5</th><th>Q6</th><th>Q7</th><th>Q8</th>
+</tr>
+{% for r in registros %}
+<tr>
+    <td>{{ r.NOMBRE_JORNADA or '-' }}</td>
+    <td>{{ r.ANIO }}</td>
+    <td>{{ r.MES }}</td>
+    <td>{{ r.FECHA }}</td>
+    <td>{{ r.USUARIO }}</td>
+    <td>{{ r.ORGANISMO }}</td>
+    <td>{{ r.INSTITUCION_EDUCATIVA }}</td>
+    <td>{{ r.CARGO }}</td>
+    <td>{{ r.PROFESION }}</td>
+    <td>{{ r.CAPACITACION_LEY }}</td>
+    <td>{{ r.CUANTAS }}</td>
+    <td>{{ r.Q1 }}</td><td>{{ r.Q2 }}</td><td>{{ r.Q3 }}</td><td>{{ r.Q4 }}</td>
+    <td>{{ r.Q5 }}</td><td>{{ r.Q6 }}</td><td>{{ r.Q7 }}</td><td>{{ r.Q8 }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

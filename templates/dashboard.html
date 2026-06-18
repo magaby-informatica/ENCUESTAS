@@ -1,0 +1,574 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ jornada.NOMBRE }}{% endblock %}
+{% block content %}
+
+<style>
+/* ── Layout ── */
+.dash-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:20px}
+.dash-title h1{margin:0;font-size:21px}.dash-title p{margin:3px 0 0;color:#555;font-size:13px}
+/* ── KPIs ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.kpi{border-radius:10px;padding:18px 14px;text-align:center;color:#fff}
+.kpi .num{font-size:38px;font-weight:900;line-height:1}
+.kpi .lbl{font-size:11px;margin-top:5px;opacity:.9;text-transform:uppercase;letter-spacing:.5px}
+.kpi.azul{background:linear-gradient(135deg,#1a4f7a,#2e7cb8)}
+.kpi.verde{background:linear-gradient(135deg,#1e8c45,#34a853)}
+.kpi.naranja{background:linear-gradient(135deg,#c97d00,#fbbc05);color:#222}
+.kpi.rojo{background:linear-gradient(135deg,#b32020,#e05555)}
+.kpi.gris{background:linear-gradient(135deg,#4a4a4a,#777)}
+.kpi.morado{background:linear-gradient(135deg,#5c3494,#9c27b0)}
+/* ── Barra progreso ── */
+.pbar-wrap{margin-bottom:22px}
+.pbar-label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;font-weight:bold}
+.pbar{background:#e0e0e0;border-radius:8px;height:24px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:8px;display:flex;align-items:center;padding-left:10px;font-size:12px;color:#fff;font-weight:bold;transition:width .8s}
+/* ── Secciones ── */
+.seccion{margin-bottom:36px;border-top:3px solid #1a4f7a;padding-top:16px}
+.seccion.verde-sec{border-color:#34a853}
+.seccion.naranja-sec{border-color:#fbbc05}
+.seccion.morado-sec{border-color:#9c27b0}
+.seccion h2{margin:0 0 14px;font-size:17px;display:flex;align-items:center;gap:8px}
+/* ── Charts ── */
+.charts-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:14px}
+.chart-box{background:#f8f9fc;border-radius:8px;padding:14px}
+.chart-box h3{font-size:13px;color:#333;margin:0 0 10px;font-weight:bold}
+canvas{max-width:100%}
+/* ── Heat map ── */
+.htable{width:100%;border-collapse:collapse;font-size:12px}
+.htable th{background:#1a4f7a;color:#fff;padding:6px 8px;text-align:left;font-weight:normal}
+.htable td{padding:5px 8px;border-bottom:1px solid #eee;vertical-align:middle}
+.hbar{height:14px;border-radius:3px;display:inline-block;min-width:3px;vertical-align:middle}
+/* ── Tag cloud ── */
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tag{padding:4px 10px;border-radius:20px;font-size:12px;color:#fff;font-weight:bold}
+/* ── Totales encuesta badge ── */
+.enc-badge{display:inline-block;background:#1a4f7a;color:#fff;border-radius:20px;
+  padding:3px 12px;font-size:12px;margin-left:8px;vertical-align:middle}
+@media print{.no-print{display:none}body{background:#fff}.container{box-shadow:none}}
+</style>
+
+<!-- ENCABEZADO -->
+<div class="dash-header">
+  <div class="dash-title">
+    <h1>📊 {{ jornada.NOMBRE }}</h1>
+    <p>📅 {{ jornada.FECHA }}
+      {% if jornada.LUGAR %} &nbsp;|&nbsp; 📍 {{ jornada.LUGAR }}{% endif %}
+      {% if jornada.RESPONSABLE %} &nbsp;|&nbsp; 👤 {{ jornada.RESPONSABLE }}{% endif %}
+    </p>
+    <p>
+      {% if jornada.ENC_QUIZ %}<span class="badge badge-servidor">QUIZ</span> {% endif %}
+      {% if jornada.ENC_PRESABER %}<span class="badge badge-servidor">PRESABER</span> {% endif %}
+      {% if jornada.ENC_CIUDADANOS %}<span class="badge badge-ciudadano">CIUDADANOS</span> {% endif %}
+      &nbsp;
+      {% if jornada.ESTADO=='ACTIVA' %}<span class="badge badge-activa">EN CURSO</span>
+      {% else %}<span class="badge badge-cerrada">CERRADA</span>{% endif %}
+    </p>
+  </div>
+  <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap">
+    {% if admin %}<a class="btn" href="{{ url_for('jornadas') }}">← Jornadas</a>{% endif %}
+    <button class="btn" onclick="window.print()" style="background:#555">🖨 Imprimir</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     SECCIÓN 1 — TOTALES GENERALES
+     ════════════════════════════════════════ -->
+<div class="seccion">
+  <h2>📈 Totales Generales de la Jornada</h2>
+
+  <div class="kpi-grid">
+    <div class="kpi azul">
+      <div class="num">{{ total_personas }}</div>
+      <div class="lbl">Personas encuestadas</div>
+    </div>
+    {% if meta > 0 %}
+    <div class="kpi {{ 'verde' if pct_meta >= 100 else ('naranja' if pct_meta >= 50 else 'rojo') }}">
+      <div class="num">{{ pct_meta }}%</div>
+      <div class="lbl">Avance vs meta ({{ meta }})</div>
+    </div>
+    {% endif %}
+    {% if personas_servidor > 0 %}
+    <div class="kpi gris">
+      <div class="num">{{ personas_servidor }}</div>
+      <div class="lbl">Servidores públicos</div>
+    </div>
+    {% endif %}
+    {% if personas_ciudadano > 0 %}
+    <div class="kpi morado">
+      <div class="num">{{ personas_ciudadano }}</div>
+      <div class="lbl">Ciudadanos</div>
+    </div>
+    {% endif %}
+    {% if total_quiz > 0 %}
+    <div class="kpi gris">
+      <div class="num">{{ total_quiz }}</div>
+      <div class="lbl">Resp. Quiz</div>
+    </div>
+    {% endif %}
+    {% if total_presaber > 0 %}
+    <div class="kpi gris">
+      <div class="num">{{ total_presaber }}</div>
+      <div class="lbl">Resp. Presaber</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if meta > 0 %}
+  <div class="pbar-wrap">
+    <div class="pbar-label">
+      <span>Avance hacia la meta</span>
+      <span>{{ total_personas }} de {{ meta }} personas</span>
+    </div>
+    <div class="pbar">
+      <div class="pbar-fill" style="
+        width:{{ [pct_meta,100]|min }}%;
+        background:{{ '#34a853' if pct_meta>=100 else ('#fbbc05' if pct_meta>=50 else '#e05555') }}">
+        {{ pct_meta }}%
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Gráficas generales -->
+  <div class="charts-row">
+    {% if personas_servidor > 0 and personas_ciudadano > 0 %}
+    <div class="chart-box">
+      <h3>Composición de encuestados</h3>
+      <canvas id="totalDonut" height="220"></canvas>
+    </div>
+    {% endif %}
+
+    {% if total_quiz > 0 and total_presaber > 0 %}
+    <div class="chart-box">
+      <h3>Respuestas por encuesta</h3>
+      <canvas id="totalBarEnc" height="220"></canvas>
+    </div>
+    {% endif %}
+
+    {% if meta > 0 %}
+    <div class="chart-box">
+      <h3>Meta vs Alcanzado</h3>
+      <canvas id="totalMeta" height="220"></canvas>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     SECCIÓN 2 — QUIZ
+     ════════════════════════════════════════ -->
+{% if total_quiz > 0 %}
+<div class="seccion verde-sec">
+  <h2>🎯 Quiz — Ley Disciplinaria
+    <span class="enc-badge">{{ total_quiz }} respuestas</span>
+  </h2>
+
+  <!-- KPIs Quiz -->
+  {% set tot_correctas = quiz_stats.values()|map(attribute='correctas')|sum %}
+  {% set tot_incorrectas = quiz_stats.values()|map(attribute='incorrectas')|sum %}
+  {% set tot_resp_quiz = tot_correctas + tot_incorrectas %}
+  {% set pct_global_quiz = (tot_correctas / tot_resp_quiz * 100)|round(1) if tot_resp_quiz > 0 else 0 %}
+  <div class="kpi-grid" style="margin-bottom:16px">
+    <div class="kpi verde">
+      <div class="num">{{ tot_correctas }}</div>
+      <div class="lbl">Respuestas correctas</div>
+    </div>
+    <div class="kpi rojo">
+      <div class="num">{{ tot_incorrectas }}</div>
+      <div class="lbl">Respuestas incorrectas</div>
+    </div>
+    <div class="kpi {{ 'verde' if pct_global_quiz>=70 else ('naranja' if pct_global_quiz>=40 else 'rojo') }}">
+      <div class="num">{{ pct_global_quiz }}%</div>
+      <div class="lbl">Acierto global</div>
+    </div>
+    <div class="kpi azul">
+      <div class="num">{{ cap_quiz.get('SI',0) }}</div>
+      <div class="lbl">Con capacitación</div>
+    </div>
+    <div class="kpi gris">
+      <div class="num">{{ cap_quiz.get('NO',0) }}</div>
+      <div class="lbl">Sin capacitación</div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>✅ Correctas vs ❌ Incorrectas (global)</h3>
+      <canvas id="quizDonut" height="230"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>% Acierto por pregunta</h3>
+      <canvas id="quizBarras" height="230"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>Capacitación en Ley Disciplinaria</h3>
+      <canvas id="capQuizDonut" height="230"></canvas>
+    </div>
+  </div>
+
+  <!-- Mapa de calor Quiz -->
+  <div class="chart-box" style="margin-bottom:14px">
+    <h3>🌡 Mapa de calor — Acierto por pregunta</h3>
+    <table class="htable">
+      <tr><th>Pregunta</th><th>Correctas</th><th>Incorrectas</th><th>% Acierto</th><th style="width:35%">Intensidad</th></tr>
+      {% for col, s in quiz_stats.items() %}
+      <tr>
+        <td><strong>{{ col }}</strong></td>
+        <td style="color:#34a853;font-weight:bold">{{ s.correctas }}</td>
+        <td style="color:#e05555;font-weight:bold">{{ s.incorrectas }}</td>
+        <td><strong>{{ s.pct }}%</strong></td>
+        <td>
+          <span class="hbar" style="width:{{ s.pct }}%;background:{{ '#34a853' if s.pct>=70 else ('#fbbc05' if s.pct>=40 else '#e05555') }}"></span>
+          <span style="font-size:11px;color:#777;margin-left:4px">{{ s.pct }}%</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>¿Servidor público de planta?</h3>
+      <canvas id="servidorDonut" height="200"></canvas>
+    </div>
+    {% if dist_organismo_quiz %}
+    <div class="chart-box">
+      <h3>Distribución por Organismo</h3>
+      <canvas id="orgQuizBar" height="200"></canvas>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if dist_cargo_quiz %}
+  <div class="chart-box" style="margin-bottom:14px">
+    <h3>☁ Nube de Cargos</h3>
+    <div class="tags">
+      {% for r in dist_cargo_quiz %}
+      <span class="tag" style="background:rgba(26,79,122,{{ 0.4 + (r.cnt/dist_cargo_quiz[0].cnt)*0.6 }});font-size:{{ 11+(r.cnt) }}px">
+        {{ r.cargo }} ({{ r.cnt }})
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if dist_prof_quiz %}
+  <div class="chart-box">
+    <h3>☁ Nube de Profesiones</h3>
+    <div class="tags">
+      {% for r in dist_prof_quiz %}
+      <span class="tag" style="background:rgba(30,140,69,{{ 0.4 + (r.cnt/dist_prof_quiz[0].cnt)*0.6 }});font-size:{{ 11+(r.cnt) }}px">
+        {{ r.prof }} ({{ r.cnt }})
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+
+<!-- ════════════════════════════════════════
+     SECCIÓN 3 — PRESABER
+     ════════════════════════════════════════ -->
+{% if total_presaber > 0 %}
+<div class="seccion naranja-sec">
+  <h2>🧠 Presaber
+    <span class="enc-badge">{{ total_presaber }} respuestas</span>
+  </h2>
+
+  {% set tot_si_ps = presaber_stats.values()|map(attribute='si')|sum %}
+  {% set tot_no_ps = presaber_stats.values()|map(attribute='no')|sum %}
+  {% set tot_resp_ps = tot_si_ps + tot_no_ps %}
+  {% set pct_si_ps = (tot_si_ps / tot_resp_ps * 100)|round(1) if tot_resp_ps > 0 else 0 %}
+
+  <div class="kpi-grid" style="margin-bottom:16px">
+    <div class="kpi verde">
+      <div class="num">{{ tot_si_ps }}</div>
+      <div class="lbl">Total respuestas SI</div>
+    </div>
+    <div class="kpi rojo">
+      <div class="num">{{ tot_no_ps }}</div>
+      <div class="lbl">Total respuestas NO</div>
+    </div>
+    <div class="kpi {{ 'verde' if pct_si_ps>=70 else ('naranja' if pct_si_ps>=40 else 'rojo') }}">
+      <div class="num">{{ pct_si_ps }}%</div>
+      <div class="lbl">% Identifica faltas</div>
+    </div>
+    <div class="kpi azul">
+      <div class="num">{{ cap_presaber.get('SI',0) }}</div>
+      <div class="lbl">Con capacitación</div>
+    </div>
+    <div class="kpi gris">
+      <div class="num">{{ cap_presaber.get('NO',0) }}</div>
+      <div class="lbl">Sin capacitación</div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>% SI (identifica como falta) por conducta</h3>
+      <canvas id="presaberBar" height="260"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>SI vs NO global</h3>
+      <canvas id="presaberDonutGlobal" height="260"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>Conducta con mayor reconocimiento</h3>
+      <canvas id="presaberDonut" height="260"></canvas>
+    </div>
+  </div>
+
+  <!-- Mapa de calor Presaber -->
+  <div class="chart-box" style="margin-bottom:14px">
+    <h3>🌡 Mapa de calor — % que identifica como falta disciplinaria</h3>
+    <table class="htable">
+      <tr><th>Conducta</th><th>SI</th><th>NO</th><th>% SI</th><th style="width:30%">Intensidad</th></tr>
+      {% for col, s in presaber_stats.items() %}
+      <tr>
+        <td style="max-width:220px;font-size:11px">{{ s.label }}</td>
+        <td style="color:#34a853;font-weight:bold">{{ s.si }}</td>
+        <td style="color:#e05555;font-weight:bold">{{ s.no }}</td>
+        <td><strong>{{ s.pct_si }}%</strong></td>
+        <td>
+          <span class="hbar" style="width:{{ s.pct_si }}%;background:{{ '#34a853' if s.pct_si>=70 else ('#fbbc05' if s.pct_si>=40 else '#e05555') }}"></span>
+          <span style="font-size:11px;color:#777;margin-left:4px">{{ s.pct_si }}%</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>Capacitación Ley Disciplinaria</h3>
+      <canvas id="capPresaberDonut" height="200"></canvas>
+    </div>
+    {% if dist_organismo_presaber %}
+    <div class="chart-box">
+      <h3>Distribución por Organismo</h3>
+      <canvas id="orgPresaberBar" height="200"></canvas>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if dist_cargo_presaber %}
+  <div class="chart-box" style="margin-bottom:14px">
+    <h3>☁ Nube de Cargos</h3>
+    <div class="tags">
+      {% for r in dist_cargo_presaber %}
+      <span class="tag" style="background:rgba(201,125,0,{{ 0.4+(r.cnt/dist_cargo_presaber[0].cnt)*0.6 }});font-size:{{ 11+(r.cnt) }}px">
+        {{ r.cargo }} ({{ r.cnt }})
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+
+<!-- ════════════════════════════════════════
+     SECCIÓN 4 — CIUDADANOS
+     ════════════════════════════════════════ -->
+{% if total_ciudadanos > 0 %}
+<div class="seccion morado-sec">
+  <h2>🏙 Encuesta Ciudadanos
+    <span class="enc-badge" style="background:#9c27b0">{{ total_ciudadanos }} respuestas</span>
+  </h2>
+
+  {% set tot_si_c = ciudadanos_stats.values()|map(attribute='si')|sum %}
+  {% set tot_no_c = ciudadanos_stats.values()|map(attribute='no')|sum %}
+  {% set tot_resp_c = tot_si_c + tot_no_c %}
+  {% set pct_si_c = (tot_si_c / tot_resp_c * 100)|round(1) if tot_resp_c > 0 else 0 %}
+
+  <div class="kpi-grid" style="margin-bottom:16px">
+    <div class="kpi verde">
+      <div class="num">{{ tot_si_c }}</div>
+      <div class="lbl">Total respuestas SI</div>
+    </div>
+    <div class="kpi rojo">
+      <div class="num">{{ tot_no_c }}</div>
+      <div class="lbl">Total respuestas NO</div>
+    </div>
+    <div class="kpi {{ 'verde' if pct_si_c>=70 else ('naranja' if pct_si_c>=40 else 'rojo') }}">
+      <div class="num">{{ pct_si_c }}%</div>
+      <div class="lbl">% Respuestas SI</div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>% SI por pregunta</h3>
+      <canvas id="ciudBar" height="230"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>SI vs NO global</h3>
+      <canvas id="ciudDonut" height="230"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>SI vs NO por pregunta (apilado)</h3>
+      <canvas id="ciudStacked" height="230"></canvas>
+    </div>
+  </div>
+
+  <!-- Mapa de calor Ciudadanos -->
+  <div class="chart-box">
+    <h3>🌡 Mapa de calor — % SI por pregunta</h3>
+    <table class="htable">
+      <tr><th>Pregunta</th><th>SI</th><th>NO</th><th>% SI</th><th style="width:35%">Intensidad</th></tr>
+      {% for col, s in ciudadanos_stats.items() %}
+      <tr>
+        <td><strong>{{ s.label }}</strong></td>
+        <td style="color:#34a853;font-weight:bold">{{ s.si }}</td>
+        <td style="color:#e05555;font-weight:bold">{{ s.no }}</td>
+        <td><strong>{{ s.pct_si }}%</strong></td>
+        <td>
+          <span class="hbar" style="width:{{ s.pct_si }}%;background:{{ '#34a853' if s.pct_si>=70 else ('#fbbc05' if s.pct_si>=40 else '#e05555') }}"></span>
+          <span style="font-size:11px;color:#777;margin-left:4px">{{ s.pct_si }}%</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ════════ CHART.JS ════════ -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const AZUL='#1a4f7a',VERDE='#34a853',ROJO='#e05555',AMAN='#fbbc05',
+      GRIS='#777',MORADO='#9c27b0';
+const PALETA=['#1a4f7a','#2e7cb8','#34a853','#fbbc05','#e05555','#9c27b0',
+              '#00bcd4','#ff5722','#607d8b','#795548','#e91e63','#3f51b5'];
+
+function donut(id,labels,data,colors){
+  new Chart(document.getElementById(id),{type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},
+    options:{cutout:'60%',plugins:{legend:{position:'bottom',labels:{font:{size:11},boxWidth:12}}}}});
+}
+function hbar(id,labels,data,colors){
+  new Chart(document.getElementById(id),{type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:4}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false}},
+      scales:{x:{max:100,ticks:{callback:v=>v+'%'},grid:{color:'#eee'}}}}});
+}
+function vbarSimple(id,labels,data,colors){
+  new Chart(document.getElementById(id),{type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:4}]},
+    options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#eee'}}}}});
+}
+function vbarStacked(id,labels,ds){
+  new Chart(document.getElementById(id),{type:'bar',
+    data:{labels,datasets:ds},
+    options:{plugins:{legend:{position:'bottom'}},
+      scales:{x:{stacked:true},y:{stacked:true,ticks:{callback:v=>v}}},borderRadius:3}});
+}
+
+/* ── TOTALES GENERALES ── */
+{% if personas_servidor > 0 and personas_ciudadano > 0 %}
+donut('totalDonut',
+  ['Servidores ({{ personas_servidor }})','Ciudadanos ({{ personas_ciudadano }})'],
+  [{{ personas_servidor }},{{ personas_ciudadano }}],
+  [AZUL, MORADO]);
+{% endif %}
+
+{% if total_quiz > 0 and total_presaber > 0 %}
+vbarSimple('totalBarEnc',
+  ['Quiz','Presaber','Ciudadanos'],
+  [{{ total_quiz }},{{ total_presaber }},{{ total_ciudadanos }}],
+  [VERDE, AMAN, MORADO]);
+{% endif %}
+
+{% if meta > 0 %}
+donut('totalMeta',
+  ['Alcanzado ({{ total_personas }})','Pendiente ({{ [meta-total_personas,0]|max }})'],
+  [{{ total_personas }}, {{ [meta-total_personas,0]|max }}],
+  [VERDE, '#e0e0e0']);
+{% endif %}
+
+/* ── QUIZ ── */
+{% if total_quiz > 0 %}
+var totC={{ quiz_stats.values()|map(attribute='correctas')|sum }};
+var totI={{ quiz_stats.values()|map(attribute='incorrectas')|sum }};
+donut('quizDonut',
+  ['Correctas ('+totC+')','Incorrectas ('+totI+')'],
+  [totC,totI],[VERDE,ROJO]);
+
+hbar('quizBarras',
+  [{% for c in quiz_stats %}'{{ c }}',{% endfor %}],
+  [{% for s in quiz_stats.values() %}{{ s.pct }},{% endfor %}],
+  [{% for s in quiz_stats.values() %}'{{ "#34a853" if s.pct>=70 else ("#fbbc05" if s.pct>=40 else "#e05555") }}',{% endfor %}]);
+
+donut('capQuizDonut',
+  ['Con cap. ({{ cap_quiz.get("SI",0) }})','Sin cap. ({{ cap_quiz.get("NO",0) }})'],
+  [{{ cap_quiz.get("SI",0) }},{{ cap_quiz.get("NO",0) }}],[VERDE,ROJO]);
+
+donut('servidorDonut',
+  ['Planta ({{ servidor_quiz.get("SI",0) }})','No planta ({{ servidor_quiz.get("NO",0) }})'],
+  [{{ servidor_quiz.get("SI",0) }},{{ servidor_quiz.get("NO",0) }}],[AZUL,GRIS]);
+
+{% if dist_organismo_quiz %}
+vbarSimple('orgQuizBar',
+  [{% for r in dist_organismo_quiz %}'{{ r.org|truncate(22,true,"…") }}',{% endfor %}],
+  [{% for r in dist_organismo_quiz %}{{ r.cnt }},{% endfor %}],
+  PALETA.slice(0,{{ dist_organismo_quiz|length }}));
+{% endif %}
+{% endif %}
+
+/* ── PRESABER ── */
+{% if total_presaber > 0 %}
+hbar('presaberBar',
+  [{% for s in presaber_stats.values() %}'{{ s.label|truncate(32,true,"…") }}',{% endfor %}],
+  [{% for s in presaber_stats.values() %}{{ s.pct_si }},{% endfor %}],
+  [{% for s in presaber_stats.values() %}'{{ "#34a853" if s.pct_si>=70 else ("#fbbc05" if s.pct_si>=40 else "#e05555") }}',{% endfor %}]);
+
+var totSiPs={{ presaber_stats.values()|map(attribute='si')|sum }};
+var totNoPs={{ presaber_stats.values()|map(attribute='no')|sum }};
+donut('presaberDonutGlobal',
+  ['SI identifica ('+totSiPs+')','NO identifica ('+totNoPs+')'],
+  [totSiPs,totNoPs],[VERDE,ROJO]);
+
+donut('presaberDonut',
+  [{% for s in presaber_stats.values() %}'{{ s.label|truncate(28,true,"…") }}',{% endfor %}],
+  [{% for s in presaber_stats.values() %}{{ s.si }},{% endfor %}],
+  PALETA);
+
+donut('capPresaberDonut',
+  ['Con cap. ({{ cap_presaber.get("SI",0) }})','Sin cap. ({{ cap_presaber.get("NO",0) }})'],
+  [{{ cap_presaber.get("SI",0) }},{{ cap_presaber.get("NO",0) }}],[VERDE,ROJO]);
+
+{% if dist_organismo_presaber %}
+vbarSimple('orgPresaberBar',
+  [{% for r in dist_organismo_presaber %}'{{ r.org|truncate(22,true,"…") }}',{% endfor %}],
+  [{% for r in dist_organismo_presaber %}{{ r.cnt }},{% endfor %}],
+  PALETA.slice(0,{{ dist_organismo_presaber|length }}));
+{% endif %}
+{% endif %}
+
+/* ── CIUDADANOS ── */
+{% if total_ciudadanos > 0 %}
+hbar('ciudBar',
+  [{% for s in ciudadanos_stats.values() %}'{{ s.label }}',{% endfor %}],
+  [{% for s in ciudadanos_stats.values() %}{{ s.pct_si }},{% endfor %}],
+  [{% for s in ciudadanos_stats.values() %}'{{ "#34a853" if s.pct_si>=70 else ("#fbbc05" if s.pct_si>=40 else "#e05555") }}',{% endfor %}]);
+
+var totSiC={{ ciudadanos_stats.values()|map(attribute='si')|sum }};
+var totNoC={{ ciudadanos_stats.values()|map(attribute='no')|sum }};
+donut('ciudDonut',
+  ['SI ('+totSiC+')','NO ('+totNoC+')'],
+  [totSiC,totNoC],[VERDE,ROJO]);
+
+vbarStacked('ciudStacked',
+  [{% for s in ciudadanos_stats.values() %}'{{ s.label }}',{% endfor %}],
+  [
+    {label:'SI',data:[{% for s in ciudadanos_stats.values() %}{{ s.si }},{% endfor %}],backgroundColor:VERDE},
+    {label:'NO',data:[{% for s in ciudadanos_stats.values() %}{{ s.no }},{% endfor %}],backgroundColor:ROJO}
+  ]);
+{% endif %}
+</script>
+
+{% endblock %}

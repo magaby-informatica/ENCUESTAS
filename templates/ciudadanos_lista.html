@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Respuestas Ciudadanos{% endblock %}
+{% block content %}
+<h1>Respuestas Ciudadanos</h1>
+<table>
+<tr>
+    <th>Jornada</th><th>Fecha</th><th>Usuario</th><th>Estudios</th><th>Ocupación</th>
+    <th>P1</th><th>P2</th><th>P3</th><th>P4</th><th>P5</th><th>P6</th><th>P7</th>
+</tr>
+{% for r in registros %}
+<tr>
+    <td>{{ r.NOMBRE_JORNADA or '-' }}</td>
+    <td>{{ r.FECHA }}</td>
+    <td>{{ r.USUARIO }}</td>
+    <td>{{ r.ESTUDIOS }}</td>
+    <td>{{ r.OCUPACION }}</td>
+    <td>{{ r.Pregunta_1 }}</td>
+    <td>{{ 'Sí' if r.Pregunta_2 else 'No' }}</td>
+    <td>{{ r.Pregunta_3 }}</td>
+    <td>{{ r.Pregunta_4 }}</td>
+    <td>{{ r.Pregunta_5 }}</td>
+    <td>{{ r.Pregunta_6 }}</td>
+    <td>{{ r.Pregunta_7 }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

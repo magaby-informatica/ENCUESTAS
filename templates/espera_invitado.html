@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}En espera — {{ jornada.NOMBRE if jornada else 'ENCUESTASS' }}{% endblock %}
+{% block content %}
+<div style="text-align:center; padding:40px 20px;">
+    <div style="font-size:56px;">⏳</div>
+    <h1 style="margin:10px 0 6px;">Esperando habilitación</h1>
+    {% if jornada %}
+    <p style="color:#555; font-size:15px;">
+        El administrador aún no ha habilitado ninguna encuesta para<br>
+        <strong>{{ jornada.NOMBRE }}</strong>. Por favor espera un momento.
+    </p>
+    {% else %}
+    <p style="color:#555; font-size:15px;">No se encontró información de la jornada.</p>
+    {% endif %}
+
+    <a href="{{ url_for('menu') }}" class="btn" style="margin-top:20px;">🔄 Actualizar</a>
+    <br>
+    <a href="{{ url_for('logout') }}" style="display:inline-block; margin-top:14px; color:#888; font-size:13px;">Salir</a>
+</div>
+{% endblock %}

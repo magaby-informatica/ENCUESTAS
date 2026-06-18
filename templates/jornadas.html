@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Jornadas{% endblock %}
+{% block content %}
+<h1>Jornadas de sensibilización / encuesta</h1>
+
+<form method="post">
+    <label>Nombre de la jornada</label>
+    <input type="text" name="nombre" required placeholder="Ej: Sensibilización Secretaría de Educación - Junio 2026">
+
+    <label>Fecha</label>
+    <input type="date" name="fecha" value="{{ today }}" required>
+
+    <label>Lugar</label>
+    <input type="text" name="lugar" placeholder="Ej: Auditorio Institución XYZ">
+
+    <label>Dirección</label>
+    <input type="text" name="direccion" placeholder="Ej: Calle 5 # 23-10, Cali">
+
+    <label>Responsable</label>
+    <input type="text" name="responsable" placeholder="Nombre del responsable de la jornada">
+
+    <label>Meta de encuestados</label>
+    <input type="number" name="meta_encuestados" min="0" value="0">
+
+    <label>PIN de acceso para encuestadores</label>
+    <input type="text" name="pin" placeholder="Ej: 2026 (el encuestador lo usará para entrar)" maxlength="20">
+
+    <label>Encuestas a realizar <small style="color:#666;">(selecciona una o más)</small></label>
+    <small style="color:#888; display:block; margin-top:2px;">
+        Al crearla quedan disponibles de inmediato para los encuestadores. Luego puedes
+        activar/desactivar cada una en cualquier momento desde la tabla de abajo.
+    </small>
+    <div style="margin-top:8px; display:flex; gap:20px; flex-wrap:wrap;">
+        <label style="font-weight:normal; display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" name="enc_quiz" value="1" style="width:auto;">
+            <strong>Quiz</strong> — Ley Disciplinaria
+        </label>
+        <label style="font-weight:normal; display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" name="enc_presaber" value="1" style="width:auto;">
+            <strong>Presaber</strong>
+        </label>
+        <label style="font-weight:normal; display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" name="enc_ciudadanos" value="1" style="width:auto;">
+            <strong>Ciudadanos</strong>
+        </label>
+    </div>
+
+    <label>Organismo / Dependencia</label>
+    <select name="organismo_id" id="organismo_id" onchange="checkEducacion()">
+        <option value="">-- Seleccione --</option>
+        {% for o in organismos %}
+        <option value="{{ o.ID_ORGANISMO }}">{{ o.ORGANISMO }}</option>
+        {% endfor %}
+    </select>
+
+    <div id="contenedor_ie" style="display:none;">
+        <label>Institución Educativa</label>
+        <select name="institucion_educativa_id">
+            <option value="">-- Seleccione --</option>
+            {% for i in instituciones %}
+            <option value="{{ i.ITEM }}">{{ i.INSTITUCION_EDUCATIVA }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <button type="submit">Crear jornada</button>
+</form>
+
+<script>
+function checkEducacion() {
+    const organismoId = document.getElementById('organismo_id').value;
+    const contenedor = document.getElementById('contenedor_ie');
+    if (!organismoId) { contenedor.style.display = 'none'; return; }
+    fetch('/api/organismo_es_educacion/' + organismoId)
+        .then(r => r.json())
+        .then(data => { contenedor.style.display = data.es_educacion ? 'block' : 'none'; });
+}
+</script>
+
+<h2 style="margin-top:30px;">Jornadas registradas</h2>
+<table>
+<tr>
+    <th>ID</th><th>Nombre</th><th>Fecha</th><th>Encuestas (clic para activar/desactivar)</th><th>Organismo</th>
+    <th>Institución Ed.</th><th>Lugar</th><th>Meta</th><th>PIN</th><th>Estado</th><th></th>
+</tr>
+{% for r in registros %}
+<tr {% if r.ID_JORNADA == jornada_activa_id %}style="background:#e6f4ea;"{% endif %}>
+    <td>{{ r.ID_JORNADA }}</td>
+    <td><a href="{{ url_for('jornadas_detalle', id_jornada=r.ID_JORNADA) }}">{{ r.NOMBRE }}</a></td>
+    <td>{{ r.FECHA }}</td>
+    <td style="white-space:nowrap;">
+        {% if r.ENC_QUIZ %}
+        <a href="{{ url_for('jornadas_toggle_encuesta', id_jornada=r.ID_JORNADA, nombre='quiz') }}"
+           class="badge {{ 'badge-activa' if r.ENC_QUIZ_ACTIVA else 'badge-cerrada' }}"
+           style="text-decoration:none; cursor:pointer;" title="Clic para {{ 'desactivar' if r.ENC_QUIZ_ACTIVA else 'activar' }}">
+           {{ '🟢' if r.ENC_QUIZ_ACTIVA else '⏸' }} QUIZ
+        </a>
+        {% endif %}
+        {% if r.ENC_PRESABER %}
+        <a href="{{ url_for('jornadas_toggle_encuesta', id_jornada=r.ID_JORNADA, nombre='presaber') }}"
+           class="badge {{ 'badge-activa' if r.ENC_PRESABER_ACTIVA else 'badge-cerrada' }}"
+           style="text-decoration:none; cursor:pointer;" title="Clic para {{ 'desactivar' if r.ENC_PRESABER_ACTIVA else 'activar' }}">
+           {{ '🟢' if r.ENC_PRESABER_ACTIVA else '⏸' }} PRESABER
+        </a>
+        {% endif %}
+        {% if r.ENC_CIUDADANOS %}
+        <a href="{{ url_for('jornadas_toggle_encuesta', id_jornada=r.ID_JORNADA, nombre='ciudadanos') }}"
+           class="badge {{ 'badge-activa' if r.ENC_CIUDADANOS_ACTIVA else 'badge-cerrada' }}"
+           style="text-decoration:none; cursor:pointer;" title="Clic para {{ 'desactivar' if r.ENC_CIUDADANOS_ACTIVA else 'activar' }}">
+           {{ '🟢' if r.ENC_CIUDADANOS_ACTIVA else '⏸' }} CIUDADANOS
+        </a>
+        {% endif %}
+    </td>
+    <td>{{ r.NOMBRE_ORGANISMO or '-' }}</td>
+    <td>{{ r.NOM_INS_EDUCATIVA or '-' }}</td>
+    <td>{{ r.LUGAR or '-' }}</td>
+    <td>{{ r.META_ENCUESTADOS }}</td>
+    <td><strong>{{ r.PIN or '-' }}</strong></td>
+    <td>
+        {% if r.ESTADO == 'ACTIVA' %}
+        <span class="badge badge-activa">ACTIVA</span>
+        {% else %}
+        <span class="badge badge-cerrada">CERRADA</span>
+        {% endif %}
+    </td>
+    <td>
+        {% if r.ID_JORNADA == jornada_activa_id %}
+            <strong>Seleccionada</strong>
+        {% else %}
+            <a class="btn" href="{{ url_for('jornadas_activar', id_jornada=r.ID_JORNADA) }}">Seleccionar</a>
+        {% endif %}
+        {% if r.ESTADO == 'ACTIVA' %}
+        <a class="btn" href="{{ url_for('jornadas_cerrar', id_jornada=r.ID_JORNADA) }}"
+           style="background:#c0392b; margin-left:4px;"
+           onclick="return confirm('¿Cerrar esta jornada?')">Cerrar</a>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

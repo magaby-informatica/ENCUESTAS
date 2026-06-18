@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Menú - ENCUESTASS{% endblock %}
+{% block content %}
+
+<h1>Panel Administrador</h1>
+
+{% if jornada %}
+<div class="info-jornada">
+    <strong>Jornada activa:</strong> {{ jornada.NOMBRE }} &nbsp;({{ jornada.FECHA }})<br>
+    <strong>Encuestas:</strong>
+    {% if jornada.ENC_QUIZ %}<span class="badge badge-servidor">QUIZ</span> {% endif %}
+    {% if jornada.ENC_PRESABER %}<span class="badge badge-servidor">PRESABER</span> {% endif %}
+    {% if jornada.ENC_CIUDADANOS %}<span class="badge badge-ciudadano">CIUDADANOS</span> {% endif %}
+    &nbsp;&nbsp;PIN: <strong>{{ jornada.PIN or 'Sin PIN' }}</strong>
+    &nbsp;&mdash;&nbsp;<a href="{{ url_for('jornadas_detalle', id_jornada=jornada.ID_JORNADA) }}">ver dashboard</a>
+</div>
+{% else %}
+<p style="color:#b30000;">
+    No hay jornada activa. Ve a <a href="{{ url_for('jornadas') }}">Jornadas</a> para crear o seleccionar una.
+</p>
+{% endif %}
+
+<h2>Encuestas</h2>
+<div class="menu-grid">
+    {% if not jornada or jornada.ENC_QUIZ %}
+    <a href="{{ url_for('preguntas') }}">QUIZ<br><small>Ley disciplinaria</small></a>
+    <a href="{{ url_for('preguntas_lista') }}">VER RESPUESTAS<br><small>Quiz</small></a>
+    {% endif %}
+    {% if not jornada or jornada.ENC_PRESABER %}
+    <a href="{{ url_for('presaber') }}">PRESABER</a>
+    <a href="{{ url_for('presaber_lista') }}">VER RESPUESTAS<br><small>Presaber</small></a>
+    {% endif %}
+    {% if not jornada or jornada.ENC_CIUDADANOS %}
+    <a href="{{ url_for('ciudadanos') }}">CIUDADANOS</a>
+    <a href="{{ url_for('ciudadanos_lista') }}">VER RESPUESTAS<br><small>Ciudadanos</small></a>
+    {% endif %}
+</div>
+
+<h2 style="margin-top:24px;">Administración</h2>
+<div class="menu-grid">
+    <a href="{{ url_for('jornadas') }}">JORNADAS<br><small>Crear / gestionar</small></a>
+    {% if jornada %}
+    <a href="{{ url_for('dashboard', id_jornada=jornada.ID_JORNADA) }}"
+       style="background:linear-gradient(135deg,#1e8c45,#34a853);">
+       📊 DASHBOARD<br><small>{{ jornada.NOMBRE|truncate(22) }}</small>
+    </a>
+    {% else %}
+    <a href="{{ url_for('jornadas') }}"
+       style="background:linear-gradient(135deg,#555,#888);">
+       📊 DASHBOARD<br><small>Selecciona una jornada</small>
+    </a>
+    {% endif %}
+    <a href="{{ url_for('organismos') }}">ORGANISMOS</a>
+    <a href="{{ url_for('directorio') }}">DIRECTORIO I.E.</a>
+    <a href="{{ url_for('usuarios') }}">USUARIOS</a>
+</div>
+
+{% endblock %}

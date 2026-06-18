@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}ENCUESTASS - Ingreso{% endblock %}
+{% block content %}
+<div style="max-width:480px; margin:30px auto;">
+    <h1 style="text-align:center;">ENCUESTASS</h1>
+
+    <!-- ====== ACCESO INVITADO / ENCUESTADOR (primero, más visible) ====== -->
+    <div style="background:#e8f0fe; border-radius:8px; padding:20px; margin-bottom:20px;">
+        <h2 style="color:#1a4f7a; margin-top:0;">📋 Encuestador</h2>
+        <p style="color:#555; font-size:14px;">Ingresa el PIN de la jornada que te dio el administrador.</p>
+        <form method="post">
+            <input type="hidden" name="tipo" value="pin">
+            <input type="text" name="pin" required placeholder="PIN de la jornada"
+                   style="text-align:center; font-size:24px; letter-spacing:8px; font-weight:bold;">
+            <button type="submit" style="width:100%; margin-top:12px; font-size:16px; padding:12px;">
+                Ingresar con PIN
+            </button>
+        </form>
+    </div>
+
+    <!-- ====== ACCESO ADMINISTRADOR ====== -->
+    <div style="background:#f8f8f8; border-radius:8px; padding:20px; border:1px solid #ddd;">
+        <h2 style="color:#555; margin-top:0; font-size:16px;">🔒 Administrador</h2>
+        <form method="post">
+            <input type="hidden" name="tipo" value="admin">
+            <label>Usuario</label>
+            <input type="text" name="usuario" required>
+            <label>Contraseña</label>
+            <input type="password" name="password" required>
+            <button type="submit" style="width:100%; margin-top:12px; background:#555;">
+                Ingresar como Admin
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

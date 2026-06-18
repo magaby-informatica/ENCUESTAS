@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Jornada: {{ jornada.NOMBRE }}{% endblock %}
+{% block content %}
+<h1>{{ jornada.NOMBRE }}</h1>
+
+<p>
+    <strong>Fecha:</strong> {{ jornada.FECHA }}<br>
+    <strong>Lugar:</strong> {{ jornada.LUGAR or '-' }}<br>
+    <strong>Dirección:</strong> {{ jornada.DIRECCION or '-' }}<br>
+    <strong>Responsable:</strong> {{ jornada.RESPONSABLE or '-' }}<br>
+    <strong>Tipo de público:</strong>
+    {% if jornada.TIPO_PUBLICO == 'CIUDADANO' %}
+        <span class="badge badge-ciudadano">CIUDADANO</span>
+    {% else %}
+        <span class="badge badge-servidor">SERVIDOR</span>
+    {% endif %}
+    <br>
+    <strong>Organismo:</strong> {{ jornada.NOMBRE_ORGANISMO or '-' }}<br>
+    {% if jornada.NOM_INS_EDUCATIVA %}
+    <strong>Institución Educativa:</strong> {{ jornada.NOM_INS_EDUCATIVA }}<br>
+    {% endif %}
+    <strong>Estado:</strong>
+    {% if jornada.ESTADO == 'ACTIVA' %}
+        <span class="badge badge-activa">ACTIVA</span>
+    {% else %}
+        <span class="badge badge-cerrada">CERRADA</span>
+    {% endif %}
+</p>
+
+<h2>Resumen de encuestados</h2>
+<div class="dashboard-cards">
+    {% if jornada.TIPO_PUBLICO == 'CIUDADANO' %}
+    <div class="card">
+        <div class="num">{{ total_ciudadanos }}</div>
+        <div class="label">Encuestas Ciudadanos</div>
+    </div>
+    {% else %}
+    <div class="card">
+        <div class="num">{{ total_preguntas }}</div>
+        <div class="label">Quiz (Preguntas)</div>
+    </div>
+    <div class="card">
+        <div class="num">{{ total_presaber }}</div>
+        <div class="label">Presaber</div>
+    </div>
+    {% endif %}
+    <div class="card">
+        <div class="num">{{ total_general }}</div>
+        <div class="label">Total encuestados</div>
+    </div>
+    {% if jornada.META_ENCUESTADOS %}
+    <div class="card">
+        <div class="num">{{ jornada.META_ENCUESTADOS }}</div>
+        <div class="label">Meta</div>
+    </div>
+    {% endif %}
+</div>
+
+{% if porcentaje is not none %}
+<p style="margin-top:16px;">Avance respecto a la meta: {{ porcentaje }}%</p>
+<div class="progress-bar">
+    <div class="progress-bar-fill" style="width:{{ porcentaje if porcentaje <= 100 else 100 }}%;"></div>
+</div>
+{% endif %}
+
+<p style="margin-top:24px;">
+    <a class="btn" href="{{ url_for('jornadas_activar', id_jornada=jornada.ID_JORNADA) }}">Activar esta jornada</a>
+    <a class="btn" href="{{ url_for('jornadas') }}">Volver a Jornadas</a>
+</p>
+{% endblock %}

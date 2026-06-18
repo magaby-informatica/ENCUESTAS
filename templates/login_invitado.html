@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Acceso Invitado - ENCUESTASS{% endblock %}
+{% block content %}
+<div style="max-width:380px; margin:40px auto; text-align:center;">
+    <h1>Acceso Invitado</h1>
+    <p style="color:#555;">Ingresa el PIN de la jornada que te proporcionó el administrador.</p>
+    <form method="post">
+        <label>PIN de la jornada</label>
+        <input type="text" name="pin" required placeholder="Ej: 1234"
+               style="text-align:center; font-size:22px; letter-spacing:6px;">
+        <button type="submit" style="width:100%; margin-top:16px;">Ingresar</button>
+    </form>
+    <p style="margin-top:20px; font-size:13px;">
+        ¿Eres administrador? <a href="{{ url_for('login') }}">Ingresar aquí</a>
+    </p>
+</div>
+{% endblock %}
