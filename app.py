@@ -235,7 +235,7 @@ def marcar_encuesta_respondida_dispositivo(token, id_jornada, nombre_encuesta):
         )
         jrow = cur.fetchone()
         activas = encuestas_activas_jornada(jrow) if jrow else []
-        completado = 1 if activas and all(e in respondidas for e in activas) else 0
+        completado = True if activas and all(e in respondidas for e in activas) else False
 
         cur.execute(
             "UPDATE dispositivos_jornada SET RESPONDIDAS=%s, COMPLETADO=%s WHERE DISPOSITIVO_TOKEN=%s AND ID_JORNADA=%s",
