@@ -142,8 +142,24 @@ def siguiente_paso_invitado(encuesta_recien_completada):
 
     # Obtener estado actual de la jornada
     jornada_actual = get_jornada_activa()
-    ya_respondidas = {b['encuesta'] for b in session.get('mis_respuestas', [])}
+
+    # Leer qué encuestas ya respondió este dispositivo desde la BD
+    # (más confiable que la sesión en entorno serverless)
+    ya_respondidas = set()
     ya_respondidas.add(encuesta_recien_completada)
+    if token and id_jornada:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT RESPONDIDAS FROM dispositivos_jornada WHERE DISPOSITIVO_TOKEN=%s AND ID_JORNADA=%s",
+                (token, id_jornada)
+            )
+            row = cur.fetchone()
+            if row and row['RESPONDIDAS']:
+                for r in row['RESPONDIDAS'].split(','):
+                    if r.strip():
+                        ya_respondidas.add(r.strip())
+        conn.close()
 
     if not pendientes:
         # Verificar encuestas activas que aún no respondió
