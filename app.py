@@ -261,7 +261,7 @@ def login():
             conn = get_connection()
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT * FROM usuarios WHERE USUARIO=%s AND PASSWORD=%s AND ESTADO=1",
+                    "SELECT * FROM usuarios WHERE USUARIO=%s AND PASSWORD=%s AND ESTADO=TRUE",
                     (usuario, password)
                 )
                 user = cur.fetchone()
