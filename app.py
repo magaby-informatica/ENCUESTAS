@@ -140,35 +140,41 @@ def siguiente_paso_invitado(encuesta_recien_completada):
     if encuesta_recien_completada in pendientes:
         pendientes = [e for e in pendientes if e != encuesta_recien_completada]
 
+    # Obtener estado actual de la jornada
+    jornada_actual = get_jornada_activa()
+    ya_respondidas = {b['encuesta'] for b in session.get('mis_respuestas', [])}
+    ya_respondidas.add(encuesta_recien_completada)
+
     if not pendientes:
-        # Revisar si el admin activó alguna encuesta nueva mientras
-        # el invitado estaba respondiendo (ej: activó Quiz a mitad
-        # de la jornada). Solo se piden las que aún no respondió.
-        jornada_actual = get_jornada_activa()
+        # Verificar encuestas activas que aún no respondió
         activas_ahora = encuestas_activas_jornada(jornada_actual)
-        ya_respondidas = {b['encuesta'] for b in session.get('mis_respuestas', [])}
         pendientes = [e for e in activas_ahora if e not in ya_respondidas]
+
+    # Verificar también encuestas INCLUIDAS pero no activas aún
+    # (ej: Quiz incluido en la jornada pero el admin no lo ha activado todavía)
+    todas_incluidas = encuestas_de_jornada(jornada_actual)
+    incluidas_sin_responder = [e for e in todas_incluidas if e not in ya_respondidas]
+    activas_ahora = encuestas_activas_jornada(jornada_actual)
+    pendientes_inactivos = [e for e in incluidas_sin_responder if e not in activas_ahora]
 
     session['pendientes_jornada'] = pendientes
 
     if pendientes:
-        # Verificar si las encuestas pendientes están activas ahora
-        jornada_actual = get_jornada_activa()
-        activas_ahora = encuestas_activas_jornada(jornada_actual)
         pendientes_activos = [e for e in pendientes if e in activas_ahora]
-        pendientes_inactivos = [e for e in pendientes if e not in activas_ahora]
-
         if pendientes_activos:
-            # Hay encuestas pendientes Y activas — ir a la siguiente
             flash('✓ Encuesta guardada. Ahora complete la siguiente encuesta para terminar el proceso.')
             return redirect(url_de_encuesta(pendientes_activos[0]))
-        else:
-            # Hay encuestas pendientes pero el admin aún NO las activó
-            # Mandar a pantalla de espera con auto-refresh
-            nombres = ', '.join(e.upper() for e in pendientes_inactivos)
-            session['esperando_encuestas'] = pendientes_inactivos
-            flash(f'✓ Encuesta guardada. Por favor espere mientras el administrador activa: {nombres}')
-            return redirect(url_for('espera_activa'))
+
+    if pendientes_inactivos:
+        # Hay encuestas incluidas en la jornada pero que el admin no ha activado aún
+        nombres = ', '.join(e.upper() for e in pendientes_inactivos)
+        session['esperando_encuestas'] = pendientes_inactivos
+        flash(f'✓ Encuesta guardada. Espere a que el administrador habilite: {nombres}')
+        return redirect(url_for('espera_activa'))
+
+    if not pendientes and not pendientes_inactivos:
+        flash('✓ Encuesta guardada correctamente. Ha completado todas las encuestas de esta jornada.')
+        return redirect(url_for('resumen_invitado'))
 
     flash('✓ Encuesta guardada correctamente. Ha completado todas las encuestas de esta jornada.')
     return redirect(url_for('resumen_invitado'))
