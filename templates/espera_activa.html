@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Espera — {{ jornada_nombre }}{% endblock %}
+{% block content %}
+
+<style>
+.espera-container {
+    text-align: center;
+    padding: 40px 20px;
+    max-width: 480px;
+    margin: 0 auto;
+}
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 6px solid #e0e0e0;
+    border-top: 6px solid #1a4f7a;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.encuestas-pendientes {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin: 16px 0;
+    flex-wrap: wrap;
+}
+.enc-tag {
+    background: #e8f0fe;
+    color: #1a4f7a;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 14px;
+}
+.contador {
+    font-size: 13px;
+    color: #888;
+    margin-top: 20px;
+}
+</style>
+
+<div class="espera-container">
+    <div style="font-size: 52px;">⏳</div>
+    <h1 style="margin: 10px 0 6px;">Espere un momento</h1>
+    <p style="color: #555; font-size: 15px;">
+        Ha completado su primera encuesta en<br>
+        <strong>{{ jornada_nombre }}</strong>.
+    </p>
+
+    <p style="color: #777; font-size: 14px; margin-top: 16px;">
+        El administrador habilitará la siguiente encuesta en breve:
+    </p>
+
+    <div class="encuestas-pendientes">
+        {% for enc in esperando %}
+        <span class="enc-tag">{{ enc.upper() }}</span>
+        {% endfor %}
+    </div>
+
+    <div class="spinner"></div>
+
+    <p style="color: #555; font-size: 14px;">
+        Esta pantalla se actualiza automáticamente.<br>
+        Cuando se habilite la encuesta, será redirigido de inmediato.
+    </p>
+
+    <p class="contador" id="contador">Verificando en 5 segundos...</p>
+</div>
+
+<script>
+var id_jornada = {{ id_jornada }};
+var esperando = {{ esperando | tojson }};
+var intervalo = 5; // segundos
+var contador = intervalo;
+
+function actualizarContador() {
+    document.getElementById('contador').textContent =
+        'Verificando en ' + contador + ' segundo' + (contador === 1 ? '' : 's') + '...';
+    contador--;
+    if (contador < 0) {
+        contador = intervalo;
+        verificarEstado();
+    }
+}
+
+function verificarEstado() {
+    fetch('/api/encuestas_activas/' + id_jornada)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var activas = data.activas || [];
+            // Verificar si alguna de las encuestas esperadas ya está activa
+            var hayActiva = esperando.some(function(enc) {
+                return activas.indexOf(enc) !== -1;
+            });
+            if (hayActiva) {
+                // Recargar la página para que Flask redirija al formulario
+                document.getElementById('contador').textContent = '✅ ¡Encuesta habilitada! Redirigiendo...';
+                window.location.reload();
+            }
+        })
+        .catch(function() {
+            // Si falla la consulta, simplemente esperar el siguiente ciclo
+        });
+}
+
+// Iniciar contador
+setInterval(actualizarContador, 1000);
+</script>
+
+{% endblock %}

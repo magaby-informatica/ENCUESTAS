@@ -152,8 +152,23 @@ def siguiente_paso_invitado(encuesta_recien_completada):
     session['pendientes_jornada'] = pendientes
 
     if pendientes:
-        flash('✓ Encuesta guardada. Ahora complete la siguiente encuesta para terminar el proceso.')
-        return redirect(url_de_encuesta(pendientes[0]))
+        # Verificar si las encuestas pendientes están activas ahora
+        jornada_actual = get_jornada_activa()
+        activas_ahora = encuestas_activas_jornada(jornada_actual)
+        pendientes_activos = [e for e in pendientes if e in activas_ahora]
+        pendientes_inactivos = [e for e in pendientes if e not in activas_ahora]
+
+        if pendientes_activos:
+            # Hay encuestas pendientes Y activas — ir a la siguiente
+            flash('✓ Encuesta guardada. Ahora complete la siguiente encuesta para terminar el proceso.')
+            return redirect(url_de_encuesta(pendientes_activos[0]))
+        else:
+            # Hay encuestas pendientes pero el admin aún NO las activó
+            # Mandar a pantalla de espera con auto-refresh
+            nombres = ', '.join(e.upper() for e in pendientes_inactivos)
+            session['esperando_encuestas'] = pendientes_inactivos
+            flash(f'✓ Encuesta guardada. Por favor espere mientras el administrador activa: {nombres}')
+            return redirect(url_for('espera_activa'))
 
     flash('✓ Encuesta guardada correctamente. Ha completado todas las encuestas de esta jornada.')
     return redirect(url_for('resumen_invitado'))
@@ -235,7 +250,7 @@ def marcar_encuesta_respondida_dispositivo(token, id_jornada, nombre_encuesta):
         )
         jrow = cur.fetchone()
         activas = encuestas_activas_jornada(jrow) if jrow else []
-        completado = True if activas and all(e in respondidas for e in activas) else False
+        completado = 1 if activas and all(e in respondidas for e in activas) else 0
 
         cur.execute(
             "UPDATE dispositivos_jornada SET RESPONDIDAS=%s, COMPLETADO=%s WHERE DISPOSITIVO_TOKEN=%s AND ID_JORNADA=%s",
@@ -261,7 +276,7 @@ def login():
             conn = get_connection()
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT * FROM usuarios WHERE USUARIO=%s AND PASSWORD=%s AND ESTADO=TRUE",
+                    "SELECT * FROM usuarios WHERE USUARIO=%s AND PASSWORD=%s AND ESTADO=1",
                     (usuario, password)
                 )
                 user = cur.fetchone()
@@ -760,6 +775,28 @@ def api_organismo_es_educacion(id_organismo):
 
 
 # ---------------------------------------------------------
+# API: estado de encuestas activas de la jornada (polling)
+# El celular del invitado consulta esto cada 5 segundos
+# para saber si el admin activó la siguiente encuesta.
+# ---------------------------------------------------------
+@app.route('/api/estado_jornada/<int:id_jornada>')
+@login_required
+def api_estado_jornada(id_jornada):
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT ENC_QUIZ_ACTIVA, ENC_PRESABER_ACTIVA, ENC_CIUDADANOS_ACTIVA
+            FROM jornadas WHERE ID_JORNADA=%s
+        """, (id_jornada,))
+        row = cur.fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'Jornada no encontrada'}), 404
+    activas = encuestas_activas_jornada(row)
+    return jsonify({'activas': activas})
+
+
+# ---------------------------------------------------------
 # API sugerencias de Cargo y Profesión
 # ---------------------------------------------------------
 @app.route('/api/sugerencias')
@@ -806,6 +843,35 @@ def api_sugerencias():
     })
 
 
+# ---------------------------------------------------------
+# API: estado actual de encuestas activas para una jornada
+# Usada por el polling de la pantalla de espera del invitado
+# ---------------------------------------------------------
+@app.route('/api/encuestas_activas/<int:id_jornada>')
+def api_encuestas_activas(id_jornada):
+    """Devuelve qué encuestas están activas en este momento
+    para una jornada. No requiere login para poder usarla
+    desde la pantalla de espera del invitado."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT ENC_QUIZ_ACTIVA, ENC_PRESABER_ACTIVA, ENC_CIUDADANOS_ACTIVA
+            FROM jornadas WHERE ID_JORNADA=%s AND ESTADO='ACTIVA'
+        """, (id_jornada,))
+        row = cur.fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'activas': []})
+    activas = []
+    if row['ENC_PRESABER_ACTIVA']:
+        activas.append('presaber')
+    if row['ENC_QUIZ_ACTIVA']:
+        activas.append('quiz')
+    if row['ENC_CIUDADANOS_ACTIVA']:
+        activas.append('ciudadanos')
+    return jsonify({'activas': activas})
+
+
 @app.route('/resumen_invitado')
 @login_required
 def resumen_invitado():
@@ -823,6 +889,36 @@ def finalizar_invitado():
     session.clear()
     flash('Gracias por participar. ¡Hasta pronto!')
     return redirect(url_for('login'))
+
+
+@app.route('/espera_activa')
+@login_required
+def espera_activa():
+    """Pantalla de espera con auto-refresh cada 5 segundos.
+    Cuando el admin activa la siguiente encuesta, redirige automáticamente."""
+    if session.get('rol') != 0:
+        return redirect(url_for('menu'))
+
+    id_jornada = session.get('invitado_jornada_id')
+    esperando = session.get('esperando_encuestas', [])
+    jornada_nombre = session.get('jornada_nombre', 'la jornada')
+
+    # Verificar si ya se activó alguna de las encuestas esperadas
+    jornada_actual = get_jornada_activa()
+    activas_ahora = encuestas_activas_jornada(jornada_actual)
+    ya_respondidas = {b['encuesta'] for b in session.get('mis_respuestas', [])}
+    pendientes_activos = [e for e in esperando if e in activas_ahora and e not in ya_respondidas]
+
+    if pendientes_activos:
+        # Ya activaron una — redirigir directamente
+        session['pendientes_jornada'] = pendientes_activos
+        flash('✓ El administrador ha habilitado la siguiente encuesta. ¡Puede continuar!')
+        return redirect(url_de_encuesta(pendientes_activos[0]))
+
+    return render_template('espera_activa.html',
+        jornada_nombre=jornada_nombre,
+        esperando=esperando,
+        id_jornada=id_jornada)
 
 
 # ---------------------------------------------------------
