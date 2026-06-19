@@ -1,6 +1,6 @@
 import psycopg2
 import psycopg2.extras
-from psycopg2 import pool
+from psycopg2 import pool, OperationalError
 import os
 
 DATABASE_URL = os.environ.get(
@@ -8,14 +8,16 @@ DATABASE_URL = os.environ.get(
     'postgresql://neondb_owner:npg_9J6hYMfwLdrI@ep-proud-wind-atb91ral-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
 )
 
-_pool = pool.ThreadedConnectionPool(minconn=2, maxconn=20, dsn=DATABASE_URL)
+_pool = None
+
+def get_pool():
+    global _pool
+    if _pool is None or _pool.closed:
+        _pool = pool.ThreadedConnectionPool(minconn=1, maxconn=10, dsn=DATABASE_URL)
+    return _pool
 
 
 class CaseInsensitiveDict(dict):
-    """Diccionario que acepta claves tanto en mayúsculas como minúsculas.
-    Internamente guarda todo en mayúsculas (como PyMySQL DictCursor),
-    pero también responde a consultas en minúsculas o mixtas."""
-
     def __getitem__(self, key):
         try:
             return super().__getitem__(key.upper())
@@ -33,9 +35,6 @@ class CaseInsensitiveDict(dict):
 
 
 class SmartDictCursor(psycopg2.extras.RealDictCursor):
-    """Cursor que devuelve filas como CaseInsensitiveDict —
-    funciona con claves en mayúsculas O minúsculas."""
-
     def fetchone(self):
         row = super().fetchone()
         if row is None:
@@ -48,8 +47,22 @@ class SmartDictCursor(psycopg2.extras.RealDictCursor):
 
 
 class DictConnection:
-    def __init__(self, conn):
-        self._conn = conn
+    def __init__(self):
+        self._conn = None
+        self._connect()
+
+    def _connect(self):
+        """Obtiene una conexión del pool, reconectando si es necesario."""
+        try:
+            conn = get_pool().getconn()
+            # Verificar que la conexión está viva
+            conn.cursor().execute("SELECT 1")
+            conn.autocommit = False
+            self._conn = conn
+        except (OperationalError, Exception):
+            # Si la conexión está muerta, crear una nueva directamente
+            self._conn = psycopg2.connect(dsn=DATABASE_URL)
+            self._conn.autocommit = False
 
     def cursor(self):
         return self._conn.cursor(cursor_factory=SmartDictCursor)
@@ -58,7 +71,13 @@ class DictConnection:
         self._conn.commit()
 
     def close(self):
-        _pool.putconn(self._conn)
+        try:
+            get_pool().putconn(self._conn)
+        except Exception:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
 
     def __enter__(self):
         return self
@@ -68,6 +87,4 @@ class DictConnection:
 
 
 def get_connection():
-    conn = _pool.getconn()
-    conn.autocommit = False
-    return DictConnection(conn)
+    return DictConnection()
