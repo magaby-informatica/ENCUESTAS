@@ -10,15 +10,6 @@ app.config.from_object('config.Config')
 COOKIE_DISPOSITIVO = 'encuestass_device_id'
 COOKIE_DURACION_DIAS = 365
 
-def row(r):
-    """Normaliza una fila de PostgreSQL (claves minúsculas) a mayúsculas
-    para compatibilidad con el código que usa r['COLUMNA']."""
-    if r is None:
-        return None
-    if hasattr(r, 'keys'):
-        return {k.upper(): v for k, v in r.items()}
-    return r
-
 # ---------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------
@@ -140,57 +131,20 @@ def siguiente_paso_invitado(encuesta_recien_completada):
     if encuesta_recien_completada in pendientes:
         pendientes = [e for e in pendientes if e != encuesta_recien_completada]
 
-    # Obtener estado actual de la jornada
-    jornada_actual = get_jornada_activa()
-
-    # Leer qué encuestas ya respondió este dispositivo desde la BD
-    # (más confiable que la sesión en entorno serverless)
-    ya_respondidas = set()
-    ya_respondidas.add(encuesta_recien_completada)
-    if token and id_jornada:
-        conn = get_connection()
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT RESPONDIDAS FROM dispositivos_jornada WHERE DISPOSITIVO_TOKEN=%s AND ID_JORNADA=%s",
-                (token, id_jornada)
-            )
-            row = cur.fetchone()
-            if row and row['RESPONDIDAS']:
-                for r in row['RESPONDIDAS'].split(','):
-                    if r.strip():
-                        ya_respondidas.add(r.strip())
-        conn.close()
-
     if not pendientes:
-        # Verificar encuestas activas que aún no respondió
+        # Revisar si el admin activó alguna encuesta nueva mientras
+        # el invitado estaba respondiendo (ej: activó Quiz a mitad
+        # de la jornada). Solo se piden las que aún no respondió.
+        jornada_actual = get_jornada_activa()
         activas_ahora = encuestas_activas_jornada(jornada_actual)
+        ya_respondidas = {b['encuesta'] for b in session.get('mis_respuestas', [])}
         pendientes = [e for e in activas_ahora if e not in ya_respondidas]
-
-    # Verificar también encuestas INCLUIDAS pero no activas aún
-    # (ej: Quiz incluido en la jornada pero el admin no lo ha activado todavía)
-    todas_incluidas = encuestas_de_jornada(jornada_actual)
-    incluidas_sin_responder = [e for e in todas_incluidas if e not in ya_respondidas]
-    activas_ahora = encuestas_activas_jornada(jornada_actual)
-    pendientes_inactivos = [e for e in incluidas_sin_responder if e not in activas_ahora]
 
     session['pendientes_jornada'] = pendientes
 
     if pendientes:
-        pendientes_activos = [e for e in pendientes if e in activas_ahora]
-        if pendientes_activos:
-            flash('✓ Encuesta guardada. Ahora complete la siguiente encuesta para terminar el proceso.')
-            return redirect(url_de_encuesta(pendientes_activos[0]))
-
-    if pendientes_inactivos:
-        # Hay encuestas incluidas en la jornada pero que el admin no ha activado aún
-        nombres = ', '.join(e.upper() for e in pendientes_inactivos)
-        session['esperando_encuestas'] = pendientes_inactivos
-        flash(f'✓ Encuesta guardada. Espere a que el administrador habilite: {nombres}')
-        return redirect(url_for('espera_activa'))
-
-    if not pendientes and not pendientes_inactivos:
-        flash('✓ Encuesta guardada correctamente. Ha completado todas las encuestas de esta jornada.')
-        return redirect(url_for('resumen_invitado'))
+        flash('✓ Encuesta guardada. Ahora complete la siguiente encuesta para terminar el proceso.')
+        return redirect(url_de_encuesta(pendientes[0]))
 
     flash('✓ Encuesta guardada correctamente. Ha completado todas las encuestas de esta jornada.')
     return redirect(url_for('resumen_invitado'))
@@ -272,7 +226,7 @@ def marcar_encuesta_respondida_dispositivo(token, id_jornada, nombre_encuesta):
         )
         jrow = cur.fetchone()
         activas = encuestas_activas_jornada(jrow) if jrow else []
-        completado = True if activas and all(e in respondidas for e in activas) else False
+        completado = 1 if activas and all(e in respondidas for e in activas) else 0
 
         cur.execute(
             "UPDATE dispositivos_jornada SET RESPONDIDAS=%s, COMPLETADO=%s WHERE DISPOSITIVO_TOKEN=%s AND ID_JORNADA=%s",
@@ -443,7 +397,6 @@ def jornadas():
                  ENC_CIUDADANOS, ENC_QUIZ, ENC_PRESABER,
                  ENC_CIUDADANOS_ACTIVA, ENC_QUIZ_ACTIVA, ENC_PRESABER_ACTIVA)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                RETURNING ID_JORNADA
             """, (
                 f.get('nombre'), f.get('fecha'), f.get('lugar'), f.get('direccion'),
                 f.get('responsable'), f.get('meta_encuestados') or 0,
@@ -454,7 +407,7 @@ def jornadas():
                 enc_ciudadanos, enc_quiz, enc_presaber,
                 enc_ciudadanos, enc_quiz, enc_presaber
             ))
-            nueva_id = cur.fetchone()['ID_JORNADA']
+            nueva_id = cur.lastrowid
         conn.commit()
         session['jornada_id'] = nueva_id
         flash('Jornada creada y activada')
@@ -523,7 +476,7 @@ def jornadas_toggle_encuesta(id_jornada, nombre):
     col = columnas[nombre]
     conn = get_connection()
     with conn.cursor() as cur:
-        cur.execute(f"UPDATE jornadas SET {col} = NOT {col}::boolean WHERE ID_JORNADA=%s", (id_jornada,))
+        cur.execute(f"UPDATE jornadas SET {col} = NOT {col} WHERE ID_JORNADA=%s", (id_jornada,))
     conn.commit()
     conn.close()
     flash(f'Estado de {nombre.upper()} actualizado para los encuestadores')
@@ -538,12 +491,12 @@ def jornadas_detalle(id_jornada):
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM jornadas WHERE ID_JORNADA=%s", (id_jornada,))
         jornada = cur.fetchone()
-        cur.execute("SELECT COUNT(*) AS TOTAL FROM encuestas_ciudadanos WHERE ID_JORNADA=%s", (id_jornada,))
-        total_ciudadanos = cur.fetchone()['TOTAL']
-        cur.execute("SELECT COUNT(*) AS TOTAL FROM preguntas WHERE ID_JORNADA=%s", (id_jornada,))
-        total_preguntas = cur.fetchone()['TOTAL']
-        cur.execute("SELECT COUNT(*) AS TOTAL FROM presaber WHERE ID_JORNADA=%s", (id_jornada,))
-        total_presaber = cur.fetchone()['TOTAL']
+        cur.execute("SELECT COUNT(*) AS total FROM encuestas_ciudadanos WHERE ID_JORNADA=%s", (id_jornada,))
+        total_ciudadanos = cur.fetchone()['total']
+        cur.execute("SELECT COUNT(*) AS total FROM preguntas WHERE ID_JORNADA=%s", (id_jornada,))
+        total_preguntas = cur.fetchone()['total']
+        cur.execute("SELECT COUNT(*) AS total FROM presaber WHERE ID_JORNADA=%s", (id_jornada,))
+        total_presaber = cur.fetchone()['total']
     conn.close()
     if not jornada:
         flash('Jornada no encontrada')
@@ -577,12 +530,12 @@ def dashboard(id_jornada):
         # ── TOTALES CORRECTOS ──
         # Presaber = persona única cuando hay Quiz+Presaber
         # Ciudadanos = persona única para jornadas ciudadanas
-        cur.execute("SELECT COUNT(*) AS T FROM encuestas_ciudadanos WHERE ID_JORNADA=%s", (id_jornada,))
-        total_ciudadanos = cur.fetchone()['T']
-        cur.execute("SELECT COUNT(*) AS T FROM preguntas WHERE ID_JORNADA=%s", (id_jornada,))
-        total_quiz = cur.fetchone()['T']
-        cur.execute("SELECT COUNT(*) AS T FROM presaber WHERE ID_JORNADA=%s", (id_jornada,))
-        total_presaber = cur.fetchone()['T']
+        cur.execute("SELECT COUNT(*) AS t FROM encuestas_ciudadanos WHERE ID_JORNADA=%s", (id_jornada,))
+        total_ciudadanos = cur.fetchone()['t']
+        cur.execute("SELECT COUNT(*) AS t FROM preguntas WHERE ID_JORNADA=%s", (id_jornada,))
+        total_quiz = cur.fetchone()['t']
+        cur.execute("SELECT COUNT(*) AS t FROM presaber WHERE ID_JORNADA=%s", (id_jornada,))
+        total_presaber = cur.fetchone()['t']
 
         # Personas únicas: Presaber cuenta como persona cuando hay encuestas servidor
         # Ciudadanos cuenta cuando hay encuestas ciudadanas
@@ -592,7 +545,7 @@ def dashboard(id_jornada):
 
         # ── DISTRIBUCIÓN POR ORGANISMO (quiz) ──
         cur.execute("""
-            SELECT COALESCE(NOMBRE_ORGANISMO,'Sin organismo') AS ORG, COUNT(*) AS CNT
+            SELECT COALESCE(NOMBRE_ORGANISMO,'Sin organismo') AS org, COUNT(*) AS cnt
             FROM preguntas WHERE ID_JORNADA=%s
             GROUP BY NOMBRE_ORGANISMO ORDER BY cnt DESC
         """, (id_jornada,))
@@ -600,7 +553,7 @@ def dashboard(id_jornada):
 
         # ── DISTRIBUCIÓN POR ORGANISMO (presaber) ──
         cur.execute("""
-            SELECT COALESCE(ORGANISMO,'Sin organismo') AS ORG, COUNT(*) AS CNT
+            SELECT COALESCE(ORGANISMO,'Sin organismo') AS org, COUNT(*) AS cnt
             FROM presaber WHERE ID_JORNADA=%s
             GROUP BY ORGANISMO ORDER BY cnt DESC
         """, (id_jornada,))
@@ -608,14 +561,14 @@ def dashboard(id_jornada):
 
         # ── DISTRIBUCIÓN POR CARGO ──
         cur.execute("""
-            SELECT COALESCE(UPPER(CARGO),'Sin cargo') AS CARGO, COUNT(*) AS CNT
+            SELECT COALESCE(UPPER(CARGO),'Sin cargo') AS cargo, COUNT(*) AS cnt
             FROM preguntas WHERE ID_JORNADA=%s AND CARGO IS NOT NULL AND CARGO!=''
             GROUP BY UPPER(CARGO) ORDER BY cnt DESC LIMIT 15
         """, (id_jornada,))
         dist_cargo_quiz = cur.fetchall()
 
         cur.execute("""
-            SELECT COALESCE(UPPER(CARGO),'Sin cargo') AS CARGO, COUNT(*) AS CNT
+            SELECT COALESCE(UPPER(CARGO),'Sin cargo') AS cargo, COUNT(*) AS cnt
             FROM presaber WHERE ID_JORNADA=%s AND CARGO IS NOT NULL AND CARGO!=''
             GROUP BY UPPER(CARGO) ORDER BY cnt DESC LIMIT 15
         """, (id_jornada,))
@@ -623,14 +576,14 @@ def dashboard(id_jornada):
 
         # ── DISTRIBUCIÓN POR PROFESIÓN ──
         cur.execute("""
-            SELECT COALESCE(UPPER(PROFESION),'Sin profesión') AS PROF, COUNT(*) AS CNT
+            SELECT COALESCE(UPPER(PROFESION),'Sin profesión') AS prof, COUNT(*) AS cnt
             FROM preguntas WHERE ID_JORNADA=%s AND PROFESION IS NOT NULL AND PROFESION!=''
             GROUP BY UPPER(PROFESION) ORDER BY cnt DESC LIMIT 15
         """, (id_jornada,))
         dist_prof_quiz = cur.fetchall()
 
         cur.execute("""
-            SELECT COALESCE(UPPER(PROFESION),'Sin profesión') AS PROF, COUNT(*) AS CNT
+            SELECT COALESCE(UPPER(PROFESION),'Sin profesión') AS prof, COUNT(*) AS cnt
             FROM presaber WHERE ID_JORNADA=%s AND PROFESION IS NOT NULL AND PROFESION!=''
             GROUP BY UPPER(PROFESION) ORDER BY cnt DESC LIMIT 15
         """, (id_jornada,))
@@ -651,13 +604,13 @@ def dashboard(id_jornada):
         if total_quiz > 0:
             for col, correcta in CORRECTAS_QUIZ.items():
                 cur.execute(f"""
-                    SELECT {col} AS RESP, COUNT(*) AS CNT
+                    SELECT {col} AS resp, COUNT(*) AS cnt
                     FROM preguntas WHERE ID_JORNADA=%s AND {col} IS NOT NULL
                     GROUP BY {col}
                 """, (id_jornada,))
                 rows = cur.fetchall()
-                total_resp = sum(r['CNT'] for r in rows)
-                correctas = sum(r['CNT'] for r in rows if r['RESP'] and correcta.lower() in r['RESP'].lower())
+                total_resp = sum(r['cnt'] for r in rows)
+                correctas = sum(r['cnt'] for r in rows if r['resp'] and correcta.lower() in r['resp'].lower())
                 quiz_stats[col] = {
                     'correctas': correctas,
                     'incorrectas': total_resp - correctas,
@@ -680,14 +633,14 @@ def dashboard(id_jornada):
         if total_presaber > 0:
             for col, label in PRESABER_LABELS.items():
                 cur.execute(f"""
-                    SELECT {col} AS RESP, COUNT(*) AS CNT
+                    SELECT {col} AS resp, COUNT(*) AS cnt
                     FROM presaber WHERE ID_JORNADA=%s AND {col} IS NOT NULL
                     GROUP BY {col}
                 """, (id_jornada,))
                 rows = cur.fetchall()
-                total_r = sum(r['CNT'] for r in rows)
-                si = sum(r['CNT'] for r in rows if r['RESP'] == 'SI')
-                no = sum(r['CNT'] for r in rows if r['RESP'] == 'NO')
+                total_r = sum(r['cnt'] for r in rows)
+                si = sum(r['cnt'] for r in rows if r['resp'] == 'SI')
+                no = sum(r['cnt'] for r in rows if r['resp'] == 'NO')
                 presaber_stats[col] = {
                     'label': label,
                     'si': si, 'no': no, 'total': total_r,
@@ -709,14 +662,14 @@ def dashboard(id_jornada):
         if total_ciudadanos > 0:
             for col, label in CIUDADANOS_LABELS.items():
                 cur.execute(f"""
-                    SELECT {col} AS RESP, COUNT(*) AS CNT
+                    SELECT {col} AS resp, COUNT(*) AS cnt
                     FROM encuestas_ciudadanos WHERE ID_JORNADA=%s AND {col} IS NOT NULL
                     GROUP BY {col}
                 """, (id_jornada,))
                 rows = cur.fetchall()
-                total_r = sum(r['CNT'] for r in rows)
-                si = sum(r['CNT'] for r in rows if str(r['RESP']).upper() in ('SI','1'))
-                no = sum(r['CNT'] for r in rows if str(r['RESP']).upper() in ('NO','0'))
+                total_r = sum(r['cnt'] for r in rows)
+                si = sum(r['cnt'] for r in rows if str(r['resp']).upper() in ('SI','1'))
+                no = sum(r['cnt'] for r in rows if str(r['resp']).upper() in ('NO','0'))
                 ciudadanos_stats[col] = {
                     'label': label,
                     'si': si, 'no': no, 'total': total_r,
@@ -726,26 +679,26 @@ def dashboard(id_jornada):
 
         # ── CAPACITACIÓN (quiz y presaber) ──
         cur.execute("""
-            SELECT CAPACITACION_LEY_DISCIPLINARIA AS RESP, COUNT(*) AS CNT
+            SELECT CAPACITACION_LEY_DISCIPLINARIA AS resp, COUNT(*) AS cnt
             FROM preguntas WHERE ID_JORNADA=%s AND CAPACITACION_LEY_DISCIPLINARIA IS NOT NULL
             GROUP BY CAPACITACION_LEY_DISCIPLINARIA
         """, (id_jornada,))
-        cap_quiz = {r['RESP']: r['CNT'] for r in cur.fetchall()}
+        cap_quiz = {r['resp']: r['cnt'] for r in cur.fetchall()}
 
         cur.execute("""
-            SELECT CAPACITACION_LEY AS RESP, COUNT(*) AS CNT
+            SELECT CAPACITACION_LEY AS resp, COUNT(*) AS cnt
             FROM presaber WHERE ID_JORNADA=%s AND CAPACITACION_LEY IS NOT NULL
             GROUP BY CAPACITACION_LEY
         """, (id_jornada,))
-        cap_presaber = {r['RESP']: r['CNT'] for r in cur.fetchall()}
+        cap_presaber = {r['resp']: r['cnt'] for r in cur.fetchall()}
 
         # ── SERVIDOR PUBLICO ──
         cur.execute("""
-            SELECT SERVIDOR_PUBLICO_PLANTA AS RESP, COUNT(*) AS CNT
+            SELECT SERVIDOR_PUBLICO_PLANTA AS resp, COUNT(*) AS cnt
             FROM preguntas WHERE ID_JORNADA=%s AND SERVIDOR_PUBLICO_PLANTA IS NOT NULL
             GROUP BY SERVIDOR_PUBLICO_PLANTA
         """, (id_jornada,))
-        servidor_quiz = {r['RESP']: r['CNT'] for r in cur.fetchall()}
+        servidor_quiz = {r['resp']: r['cnt'] for r in cur.fetchall()}
 
     conn.close()
 
@@ -797,28 +750,6 @@ def api_organismo_es_educacion(id_organismo):
 
 
 # ---------------------------------------------------------
-# API: estado de encuestas activas de la jornada (polling)
-# El celular del invitado consulta esto cada 5 segundos
-# para saber si el admin activó la siguiente encuesta.
-# ---------------------------------------------------------
-@app.route('/api/estado_jornada/<int:id_jornada>')
-@login_required
-def api_estado_jornada(id_jornada):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT ENC_QUIZ_ACTIVA, ENC_PRESABER_ACTIVA, ENC_CIUDADANOS_ACTIVA
-            FROM jornadas WHERE ID_JORNADA=%s
-        """, (id_jornada,))
-        row = cur.fetchone()
-    conn.close()
-    if not row:
-        return jsonify({'error': 'Jornada no encontrada'}), 404
-    activas = encuestas_activas_jornada(row)
-    return jsonify({'activas': activas})
-
-
-# ---------------------------------------------------------
 # API sugerencias de Cargo y Profesión
 # ---------------------------------------------------------
 @app.route('/api/sugerencias')
@@ -828,34 +759,34 @@ def api_sugerencias():
     with conn.cursor() as cur:
         # Cargos de preguntas y presaber
         cur.execute("""
-            SELECT DISTINCT UPPER(CARGO) AS VAL FROM preguntas WHERE CARGO IS NOT NULL AND CARGO != ''
+            SELECT DISTINCT UPPER(CARGO) AS val FROM preguntas WHERE CARGO IS NOT NULL AND CARGO != ''
             UNION
             SELECT DISTINCT UPPER(CARGO) FROM presaber WHERE CARGO IS NOT NULL AND CARGO != ''
             ORDER BY val
         """)
-        cargos = [r['VAL'] for r in cur.fetchall()]
+        cargos = [r['val'] for r in cur.fetchall()]
         # Profesiones de preguntas y presaber
         cur.execute("""
-            SELECT DISTINCT UPPER(PROFESION) AS VAL FROM preguntas WHERE PROFESION IS NOT NULL AND PROFESION != ''
+            SELECT DISTINCT UPPER(PROFESION) AS val FROM preguntas WHERE PROFESION IS NOT NULL AND PROFESION != ''
             UNION
             SELECT DISTINCT UPPER(PROFESION) FROM presaber WHERE PROFESION IS NOT NULL AND PROFESION != ''
             ORDER BY val
         """)
-        profesiones = [r['VAL'] for r in cur.fetchall()]
+        profesiones = [r['val'] for r in cur.fetchall()]
         # Estudios de ciudadanos
         cur.execute("""
-            SELECT DISTINCT UPPER(ESTUDIOS) AS VAL FROM encuestas_ciudadanos
+            SELECT DISTINCT UPPER(ESTUDIOS) AS val FROM encuestas_ciudadanos
             WHERE ESTUDIOS IS NOT NULL AND ESTUDIOS != ''
             ORDER BY val
         """)
-        estudios = [r['VAL'] for r in cur.fetchall()]
+        estudios = [r['val'] for r in cur.fetchall()]
         # Ocupaciones de ciudadanos
         cur.execute("""
-            SELECT DISTINCT UPPER(OCUPACION) AS VAL FROM encuestas_ciudadanos
+            SELECT DISTINCT UPPER(OCUPACION) AS val FROM encuestas_ciudadanos
             WHERE OCUPACION IS NOT NULL AND OCUPACION != ''
             ORDER BY val
         """)
-        ocupaciones = [r['VAL'] for r in cur.fetchall()]
+        ocupaciones = [r['val'] for r in cur.fetchall()]
     conn.close()
     return jsonify({
         'cargos': cargos,
@@ -863,35 +794,6 @@ def api_sugerencias():
         'estudios': estudios,
         'ocupaciones': ocupaciones
     })
-
-
-# ---------------------------------------------------------
-# API: estado actual de encuestas activas para una jornada
-# Usada por el polling de la pantalla de espera del invitado
-# ---------------------------------------------------------
-@app.route('/api/encuestas_activas/<int:id_jornada>')
-def api_encuestas_activas(id_jornada):
-    """Devuelve qué encuestas están activas en este momento
-    para una jornada. No requiere login para poder usarla
-    desde la pantalla de espera del invitado."""
-    conn = get_connection()
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT ENC_QUIZ_ACTIVA, ENC_PRESABER_ACTIVA, ENC_CIUDADANOS_ACTIVA
-            FROM jornadas WHERE ID_JORNADA=%s AND ESTADO='ACTIVA'
-        """, (id_jornada,))
-        row = cur.fetchone()
-    conn.close()
-    if not row:
-        return jsonify({'activas': []})
-    activas = []
-    if row['ENC_PRESABER_ACTIVA']:
-        activas.append('presaber')
-    if row['ENC_QUIZ_ACTIVA']:
-        activas.append('quiz')
-    if row['ENC_CIUDADANOS_ACTIVA']:
-        activas.append('ciudadanos')
-    return jsonify({'activas': activas})
 
 
 @app.route('/resumen_invitado')
@@ -911,36 +813,6 @@ def finalizar_invitado():
     session.clear()
     flash('Gracias por participar. ¡Hasta pronto!')
     return redirect(url_for('login'))
-
-
-@app.route('/espera_activa')
-@login_required
-def espera_activa():
-    """Pantalla de espera con auto-refresh cada 5 segundos.
-    Cuando el admin activa la siguiente encuesta, redirige automáticamente."""
-    if session.get('rol') != 0:
-        return redirect(url_for('menu'))
-
-    id_jornada = session.get('invitado_jornada_id')
-    esperando = session.get('esperando_encuestas', [])
-    jornada_nombre = session.get('jornada_nombre', 'la jornada')
-
-    # Verificar si ya se activó alguna de las encuestas esperadas
-    jornada_actual = get_jornada_activa()
-    activas_ahora = encuestas_activas_jornada(jornada_actual)
-    ya_respondidas = {b['encuesta'] for b in session.get('mis_respuestas', [])}
-    pendientes_activos = [e for e in esperando if e in activas_ahora and e not in ya_respondidas]
-
-    if pendientes_activos:
-        # Ya activaron una — redirigir directamente
-        session['pendientes_jornada'] = pendientes_activos
-        flash('✓ El administrador ha habilitado la siguiente encuesta. ¡Puede continuar!')
-        return redirect(url_de_encuesta(pendientes_activos[0]))
-
-    return render_template('espera_activa.html',
-        jornada_nombre=jornada_nombre,
-        esperando=esperando,
-        id_jornada=id_jornada)
 
 
 # ---------------------------------------------------------
@@ -966,7 +838,7 @@ def ciudadanos():
                 (ID_ENCUESTA, USUARIO, FECHA, ESTUDIOS, OCUPACION,
                  Pregunta_1, Pregunta_2, Pregunta_3, Pregunta_4,
                  Pregunta_5, Pregunta_6, Pregunta_7, ID_JORNADA)
-                VALUES (gen_random_uuid()::text, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (UUID(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 session['usuario'], f.get('fecha', date.today()),
                 f.get('estudios'), f.get('ocupacion'),
@@ -1276,7 +1148,7 @@ def usuarios():
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO usuarios (USUARIO, PASSWORD, ROL, ESTADO) VALUES (%s,%s,%s,%s)",
-                (f['usuario'], f['password'], f['rol'], 1)
+                (f['usuario'], f['password'], f['rol'], True)
             )
         conn.commit()
     with conn.cursor() as cur:
@@ -1297,7 +1169,7 @@ def usuarios():
 def usuarios_toggle(idusuario):
     conn = get_connection()
     with conn.cursor() as cur:
-        cur.execute("UPDATE usuarios SET ESTADO = NOT ESTADO::boolean WHERE IDUSUARIO=%s", (idusuario,))
+        cur.execute("UPDATE usuarios SET ESTADO = NOT ESTADO WHERE IDUSUARIO=%s", (idusuario,))
     conn.commit()
     conn.close()
     return redirect(url_for('usuarios'))
