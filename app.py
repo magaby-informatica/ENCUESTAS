@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, make_response
+﻿from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, make_response
 from db import get_connection
 from datetime import date, datetime, timedelta
 import functools
@@ -1105,9 +1105,16 @@ def organismos():
 @admin_required
 def organismos_eliminar(id_organismo):
     conn = get_connection()
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM organismos WHERE ID_ORGANISMO=%s", (id_organismo,))
-    conn.close()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM organismos WHERE ID_ORGANISMO=%s", (id_organismo,))
+        conn.commit()
+        flash('Organismo eliminado')
+    except Exception:
+        conn.rollback()
+        flash('No se puede eliminar: este organismo ya tiene encuestas registradas.')
+    finally:
+        conn.close()
     return redirect(url_for('organismos'))
 
 
@@ -1132,9 +1139,16 @@ def directorio():
 @admin_required
 def directorio_eliminar(item):
     conn = get_connection()
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM directorio_ie WHERE ITEM=%s", (item,))
-    conn.close()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM directorio_ie WHERE ITEM=%s", (item,))
+        conn.commit()
+        flash('Institución educativa eliminada')
+    except Exception:
+        conn.rollback()
+        flash('No se puede eliminar: esta institución ya tiene encuestas registradas.')
+    finally:
+        conn.close()
     return redirect(url_for('directorio'))
 
 
@@ -1206,11 +1220,16 @@ def usuarios_eliminar(idusuario):
         flash('No puedes eliminar tu propio usuario')
         return redirect(url_for('usuarios'))
     conn = get_connection()
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM usuarios WHERE IDUSUARIO=%s", (idusuario,))
-    conn.commit()
-    conn.close()
-    flash('Usuario eliminado')
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM usuarios WHERE IDUSUARIO=%s", (idusuario,))
+        conn.commit()
+        flash('Usuario eliminado')
+    except Exception:
+        conn.rollback()
+        flash('No se puede eliminar: este usuario tiene encuestas registradas a su nombre.')
+    finally:
+        conn.close()
     return redirect(url_for('usuarios'))
 
 
