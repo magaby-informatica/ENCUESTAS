@@ -1,4 +1,4 @@
-import psycopg2
+﻿import psycopg2
 import psycopg2.extras
 from psycopg2 import pool, OperationalError
 import os
@@ -52,15 +52,15 @@ class DictConnection:
         self._connect()
 
     def _connect(self):
-        """Obtiene una conexión del pool, reconectando si es necesario."""
+        """Obtiene una conexiÃ³n del pool, reconectando si es necesario."""
         try:
             conn = get_pool().getconn()
-            # Verificar que la conexión está viva
+            # Verificar que la conexiÃ³n estÃ¡ viva
             conn.cursor().execute("SELECT 1")
             conn.autocommit = False
             self._conn = conn
         except (OperationalError, Exception):
-            # Si la conexión está muerta, crear una nueva directamente
+            # Si la conexiÃ³n estÃ¡ muerta, crear una nueva directamente
             self._conn = psycopg2.connect(dsn=DATABASE_URL)
             self._conn.autocommit = False
 
@@ -70,6 +70,8 @@ class DictConnection:
     def commit(self):
         self._conn.commit()
 
+    def rollback(self):
+        self._conn.rollback()
     def close(self):
         try:
             get_pool().putconn(self._conn)
