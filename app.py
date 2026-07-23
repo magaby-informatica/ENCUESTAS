@@ -131,13 +131,14 @@ def siguiente_paso_invitado(encuesta_recien_completada):
     if encuesta_recien_completada in pendientes:
         pendientes = [e for e in pendientes if e != encuesta_recien_completada]
 
+    jornada_actual = get_jornada_activa()
+    ya_respondidas = {b['encuesta'] for b in session.get('mis_respuestas', [])}
+
     if not pendientes:
         # Revisar si el admin activó alguna encuesta nueva mientras
         # el invitado estaba respondiendo (ej: activó Quiz a mitad
         # de la jornada). Solo se piden las que aún no respondió.
-        jornada_actual = get_jornada_activa()
         activas_ahora = encuestas_activas_jornada(jornada_actual)
-        ya_respondidas = {b['encuesta'] for b in session.get('mis_respuestas', [])}
         pendientes = [e for e in activas_ahora if e not in ya_respondidas]
 
     session['pendientes_jornada'] = pendientes
@@ -145,6 +146,16 @@ def siguiente_paso_invitado(encuesta_recien_completada):
     if pendientes:
         flash('✓ Encuesta guardada. Ahora complete la siguiente encuesta para terminar el proceso.')
         return redirect(url_de_encuesta(pendientes[0]))
+
+    # No hay nada activo para responder ahora mismo. Antes de dar por
+    # terminado el proceso, revisar si la jornada INCLUYE otras
+    # encuestas que el admin simplemente no ha activado todavía.
+    # Si es así, el invitado debe esperar, no ir al resumen final.
+    incluidas = encuestas_de_jornada(jornada_actual)
+    faltan_por_activar = [e for e in incluidas if e not in ya_respondidas]
+    if faltan_por_activar:
+        flash('✓ Encuesta guardada. Espera a que el administrador active la siguiente encuesta.')
+        return redirect(url_for('menu'))
 
     flash('✓ Encuesta guardada correctamente. Ha completado todas las encuestas de esta jornada.')
     return redirect(url_for('resumen_invitado'))
@@ -345,8 +356,41 @@ def menu():
     jornada = get_jornada_activa()
     if session.get('rol') == 0:
         activas = encuestas_activas_jornada(jornada)
+        ya_respondidas = {b['encuesta'] for b in session.get('mis_respuestas', [])}
+        pendientes_activas = [e for e in activas if e not in ya_respondidas]
+
+        # Si ya hay una encuesta activa que el invitado no ha respondido,
+        # que la responda directamente (no debería llegar aquí normalmente,
+        # pero por si acaso).
+        if pendientes_activas:
+            return redirect(url_de_encuesta(pendientes_activas[0]))
+
+        if ya_respondidas and jornada:
+            # Ya respondió al menos una encuesta y está esperando que el
+            # admin active la siguiente: pantalla con auto-actualización.
+            incluidas = encuestas_de_jornada(jornada)
+            esperando = [e for e in incluidas if e not in ya_respondidas]
+            return render_template('espera_activa.html',
+                jornada_nombre=jornada['NOMBRE'], id_jornada=jornada['ID_JORNADA'],
+                esperando=esperando)
+
+        # Aún no ha respondido nada y no hay ninguna encuesta activa todavía.
         return render_template('espera_invitado.html', jornada=jornada, activas=activas)
     return render_template('menu.html', jornada=jornada, admin=es_admin())
+
+
+@app.route('/api/encuestas_activas/<int:id_jornada>')
+@login_required
+def api_encuestas_activas(id_jornada):
+    """Usado por la pantalla de espera del invitado (polling) para
+    saber si el administrador ya activó la siguiente encuesta."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute("SELECT * FROM jornadas WHERE ID_JORNADA=%s", (id_jornada,))
+        jornada = cur.fetchone()
+    conn.close()
+    activas = encuestas_activas_jornada(jornada) if jornada else []
+    return jsonify({'activas': activas})
 
 
 # ---------------------------------------------------------
