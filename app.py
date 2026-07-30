@@ -403,6 +403,22 @@ def jornadas():
     conn = get_connection()
     if request.method == 'POST':
         f = request.form
+        campos_obligatorios = {
+            'nombre': 'Nombre de la jornada',
+            'fecha': 'Fecha',
+            'lugar': 'Lugar',
+            'direccion': 'Dirección',
+            'responsable': 'Responsable',
+            'meta_encuestados': 'Meta de encuestados',
+            'pin': 'PIN de acceso',
+            'organismo_id': 'Organismo / Dependencia',
+        }
+        faltantes = [etiqueta for campo, etiqueta in campos_obligatorios.items() if not f.get(campo, '').strip()]
+        if faltantes:
+            flash('Faltan campos obligatorios: ' + ', '.join(faltantes))
+            conn.close()
+            return redirect(url_for('jornadas'))
+
         nombre_org = None
         if f.get('organismo_id'):
             with conn.cursor() as cur:
