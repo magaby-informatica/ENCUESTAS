@@ -519,13 +519,34 @@ def dispositivos_jornada_activa():
     if jornada:
         conn = get_connection()
         with conn.cursor() as cur:
+            cur.execute("ALTER TABLE dispositivos_jornada ADD COLUMN IF NOT EXISTS ALIAS VARCHAR(100)")
             cur.execute(
                 "SELECT * FROM dispositivos_jornada WHERE ID_JORNADA=%s ORDER BY ULTIMA_ACTIVIDAD DESC",
                 (jornada['ID_JORNADA'],)
             )
             dispositivos = cur.fetchall()
+        conn.commit()
         conn.close()
-    return render_template('dispositivos_jornada.html', jornada=jornada, dispositivos=dispositivos, admin=es_admin())
+    return render_template('dispositivos.html', jornada=jornada, dispositivos=dispositivos, admin=es_admin())
+
+
+@app.route('/jornadas/<int:id_jornada>/dispositivo/<int:id_dispositivo>/renombrar', methods=['POST'])
+@login_required
+@admin_required
+def jornadas_renombrar_dispositivo(id_jornada, id_dispositivo):
+    """Guarda un nombre/etiqueta elegido por el admin para identificar
+    el dispositivo (ej: 'Tablet recepción', 'Celular Juan')."""
+    alias = request.form.get('alias', '').strip()[:100]
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE dispositivos_jornada SET ALIAS=%s WHERE ID=%s AND ID_JORNADA=%s",
+            (alias or None, id_dispositivo, id_jornada)
+        )
+    conn.commit()
+    conn.close()
+    flash('Nombre del dispositivo actualizado.')
+    return redirect(url_for('dispositivos_jornada_activa'))
 
 
 @app.route('/jornadas/<int:id_jornada>/dispositivo/<int:id_dispositivo>/desbloquear')
