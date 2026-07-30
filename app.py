@@ -498,6 +498,7 @@ def jornadas_cerrar(id_jornada):
     conn = get_connection()
     with conn.cursor() as cur:
         cur.execute("UPDATE jornadas SET ESTADO='CERRADA' WHERE ID_JORNADA=%s", (id_jornada,))
+    conn.commit()
     conn.close()
     flash('Jornada cerrada')
     return redirect(url_for('jornadas'))
