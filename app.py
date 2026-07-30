@@ -507,6 +507,65 @@ def jornadas_desactivar():
     return redirect(request.referrer or url_for('jornadas'))
 
 
+@app.route('/jornadas/dispositivos')
+@login_required
+@admin_required
+def dispositivos_jornada_activa():
+    """Pantalla dedicada: solo los dispositivos que han ingresado a la
+    jornada actualmente activa (session['jornada_id']), con opción de
+    desbloquear o eliminar cada uno."""
+    jornada = get_jornada_activa()
+    dispositivos = []
+    if jornada:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM dispositivos_jornada WHERE ID_JORNADA=%s ORDER BY ULTIMA_ACTIVIDAD DESC",
+                (jornada['ID_JORNADA'],)
+            )
+            dispositivos = cur.fetchall()
+        conn.close()
+    return render_template('dispositivos_jornada.html', jornada=jornada, dispositivos=dispositivos, admin=es_admin())
+
+
+@app.route('/jornadas/<int:id_jornada>/dispositivo/<int:id_dispositivo>/desbloquear')
+@login_required
+@admin_required
+def jornadas_desbloquear_dispositivo(id_jornada, id_dispositivo):
+    """Permite al admin reiniciar el estado de un dispositivo específico
+    para que pueda volver a contestar las encuestas de esta jornada
+    (útil cuando se usa una sola tablet/celular para varias personas)."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE dispositivos_jornada SET RESPONDIDAS='', COMPLETADO=FALSE "
+            "WHERE ID=%s AND ID_JORNADA=%s",
+            (id_dispositivo, id_jornada)
+        )
+    conn.commit()
+    conn.close()
+    flash('Dispositivo desbloqueado. Puede volver a contestar las encuestas.')
+    return redirect(url_for('dispositivos_jornada_activa'))
+
+
+@app.route('/jornadas/<int:id_jornada>/dispositivo/<int:id_dispositivo>/eliminar')
+@login_required
+@admin_required
+def jornadas_eliminar_dispositivo(id_jornada, id_dispositivo):
+    """Elimina por completo el registro de seguimiento de un dispositivo
+    en esta jornada (equivale a que nunca hubiera entrado)."""
+    conn = get_connection()
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM dispositivos_jornada WHERE ID=%s AND ID_JORNADA=%s",
+            (id_dispositivo, id_jornada)
+        )
+    conn.commit()
+    conn.close()
+    flash('Registro del dispositivo eliminado.')
+    return redirect(url_for('dispositivos_jornada_activa'))
+
+
 @app.route('/jornadas/cerrar/<int:id_jornada>')
 @login_required
 @admin_required
