@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Dispositivos — Jornada activa{% endblock %}
+{% block content %}
+
+{% if not jornada %}
+<h1>Dispositivos de la jornada activa</h1>
+<p>No hay ninguna jornada activa en este momento. Ve a
+    <a href="{{ url_for('jornadas') }}">Jornadas</a> y selecciona una.</p>
+{% else %}
+<h1>Dispositivos — {{ jornada.NOMBRE }}</h1>
+<p style="color:#666;">Aquí ves solo los dispositivos que han ingresado a la jornada
+    que está activa ahora mismo. Si necesitas que un dispositivo (por ejemplo una
+    tablet usada por varias personas) pueda volver a contestar, desbloquéalo.</p>
+
+<h2 style="margin-top:20px;">Dispositivos ({{ dispositivos|length }})</h2>
+{% if dispositivos %}
+<table>
+<tr>
+    <th>Nombre</th>
+    <th>Primera vez</th>
+    <th>Última actividad</th>
+    <th>IP</th>
+    <th>Encuestas respondidas</th>
+    <th>Estado</th>
+    <th></th>
+</tr>
+{% for d in dispositivos %}
+<tr>
+    <td>
+        <form method="post" action="{{ url_for('jornadas_renombrar_dispositivo', id_jornada=jornada.ID_JORNADA, id_dispositivo=d.ID) }}"
+              style="display:flex; gap:4px;">
+            <input type="text" name="alias" value="{{ d.ALIAS or '' }}" placeholder="Ej: Tablet recepción"
+                   style="width:140px;">
+            <button type="submit" class="btn" style="padding:4px 8px;">Guardar</button>
+        </form>
+    </td>
+    <td>{{ d.PRIMERA_VEZ }}</td>
+    <td>{{ d.ULTIMA_ACTIVIDAD }}</td>
+    <td>{{ d.IP_REGISTRO or '-' }}</td>
+    <td>{{ d.RESPONDIDAS or '-' }}</td>
+    <td>
+        {% if d.COMPLETADO %}
+        <span class="badge badge-cerrada">COMPLETADO</span>
+        {% else %}
+        <span class="badge badge-activa">EN PROCESO</span>
+        {% endif %}
+    </td>
+    <td style="white-space:nowrap;">
+        <a class="btn" href="{{ url_for('jornadas_desbloquear_dispositivo', id_jornada=jornada.ID_JORNADA, id_dispositivo=d.ID) }}"
+           onclick="return confirm('¿Desbloquear este dispositivo para que pueda contestar de nuevo?')">Desbloquear</a>
+        <a class="btn" style="background:#c0392b; margin-left:4px;"
+           href="{{ url_for('jornadas_eliminar_dispositivo', id_jornada=jornada.ID_JORNADA, id_dispositivo=d.ID) }}"
+           onclick="return confirm('¿Eliminar por completo el registro de este dispositivo?')">Eliminar</a>
+    </td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p style="color:#888;">Ningún dispositivo ha ingresado todavía a esta jornada.</p>
+{% endif %}
+
+<p style="margin-top:24px;">
+    <a class="btn" href="{{ url_for('jornadas') }}">Volver a Jornadas</a>
+</p>
+{% endif %}
+{% endblock %}
