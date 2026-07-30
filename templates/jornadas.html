@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Jornadas de sensibilización / encuesta</h1>
 
-<form method="post">
+<form method="post" onsubmit="return validarEncuestas()">
     <label>Nombre de la jornada</label>
     <input type="text" name="nombre" required placeholder="Ej: Sensibilización Secretaría de Educación - Junio 2026">
 
@@ -11,19 +11,19 @@
     <input type="date" name="fecha" value="{{ today }}" required>
 
     <label>Lugar</label>
-    <input type="text" name="lugar" placeholder="Ej: Auditorio Institución XYZ">
+    <input type="text" name="lugar" required placeholder="Ej: Auditorio Institución XYZ">
 
     <label>Dirección</label>
-    <input type="text" name="direccion" placeholder="Ej: Calle 5 # 23-10, Cali">
+    <input type="text" name="direccion" required placeholder="Ej: Calle 5 # 23-10, Cali">
 
     <label>Responsable</label>
-    <input type="text" name="responsable" placeholder="Nombre del responsable de la jornada">
+    <input type="text" name="responsable" required placeholder="Nombre del responsable de la jornada">
 
     <label>Meta de encuestados</label>
-    <input type="number" name="meta_encuestados" min="0" value="0">
+    <input type="number" name="meta_encuestados" min="1" required>
 
     <label>PIN de acceso para encuestadores</label>
-    <input type="text" name="pin" placeholder="Ej: 2026 (el encuestador lo usará para entrar)" maxlength="20">
+    <input type="text" name="pin" required placeholder="Ej: 2026 (el encuestador lo usará para entrar)" maxlength="20">
 
     <label>Encuestas a realizar <small style="color:#666;">(selecciona una o más)</small></label>
     <small style="color:#888; display:block; margin-top:2px;">
@@ -46,8 +46,8 @@
     </div>
 
     <label>Organismo / Dependencia</label>
-    <select name="organismo_id" id="organismo_id" onchange="checkEducacion()">
-        <option value="">-- Seleccione --</option>
+    <select name="organismo_id" id="organismo_id" onchange="checkEducacion()" required>
+        <option value="" selected disabled>-- Seleccione --</option>
         {% for o in organismos %}
         <option value="{{ o.ID_ORGANISMO }}">{{ o.ORGANISMO }}</option>
         {% endfor %}
@@ -67,6 +67,15 @@
 </form>
 
 <script>
+function validarEncuestas() {
+    const marcadas = document.querySelectorAll('input[name="enc_quiz"]:checked, input[name="enc_presaber"]:checked, input[name="enc_ciudadanos"]:checked');
+    if (marcadas.length === 0) {
+        alert('Debes seleccionar al menos una encuesta (Quiz, Presaber o Ciudadanos).');
+        return false;
+    }
+    return true;
+}
+
 function checkEducacion() {
     const organismoId = document.getElementById('organismo_id').value;
     const contenedor = document.getElementById('contenedor_ie');
