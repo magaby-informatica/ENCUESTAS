@@ -86,7 +86,8 @@
     {% endif %}
 
     <label>¿Ha recibido capacitación en la Ley Disciplinaria?</label>
-    <select name="capacitacion">
+    <select name="capacitacion" required>
+        <option value="" selected disabled>-- Seleccione --</option>
         <option value="SI">SI</option>
         <option value="NO">NO</option>
     </select>
@@ -97,28 +98,28 @@
     <h2>¿Cuáles de las siguientes considera que son faltas disciplinarias? (SI / NO)</h2>
 
     <label>1. No tratar con respeto, imparcialidad y rectitud a las personas con quienes tenga relación por razón del servicio</label>
-    <select name="q1"><option value="SI">SI</option><option value="NO">NO</option></select>
+    <select name="q1" required><option value="" selected disabled>-- Seleccione --</option><option value="SI">SI</option><option value="NO">NO</option></select>
 
     <label>2. Solicitar directa o indirectamente dádivas, agasajos, regalos, favores o cualquier otra clase de beneficio</label>
-    <select name="q2"><option value="SI">SI</option><option value="NO">NO</option></select>
+    <select name="q2" required><option value="" selected disabled>-- Seleccione --</option><option value="SI">SI</option><option value="NO">NO</option></select>
 
     <label>3. Ejecutar actos de violencia contra superiores, subalternos o compañeros de trabajo, demás servidores públicos o injuriarlos o calumniarlos</label>
-    <select name="q3"><option value="SI">SI</option><option value="NO">NO</option></select>
+    <select name="q3" required><option value="" selected disabled>-- Seleccione --</option><option value="SI">SI</option><option value="NO">NO</option></select>
 
     <label>4. No dedicar la totalidad del tiempo reglamentario de trabajo al desempeño de las funciones encomendadas, salvo las excepciones legales</label>
-    <select name="q4"><option value="SI">SI</option><option value="NO">NO</option></select>
+    <select name="q4" required><option value="" selected disabled>-- Seleccione --</option><option value="SI">SI</option><option value="NO">NO</option></select>
 
     <label>5. Incumplir con el horario de trabajo establecido por la Alcaldía Distrital de Santiago de Cali</label>
-    <select name="q5"><option value="SI">SI</option><option value="NO">NO</option></select>
+    <select name="q5" required><option value="" selected disabled>-- Seleccione --</option><option value="SI">SI</option><option value="NO">NO</option></select>
 
     <label>6. Omitir, retardar o no suministrar debida y oportuna respuesta a las peticiones respetuosas de los particulares o a solicitudes de las autoridades</label>
-    <select name="q6"><option value="SI">SI</option><option value="NO">NO</option></select>
+    <select name="q6" required><option value="" selected disabled>-- Seleccione --</option><option value="SI">SI</option><option value="NO">NO</option></select>
 
     <label>7. No acreditar los requisitos exigidos por la ley para la posesión y el desempeño del cargo</label>
-    <select name="q7"><option value="SI">SI</option><option value="NO">NO</option></select>
+    <select name="q7" required><option value="" selected disabled>-- Seleccione --</option><option value="SI">SI</option><option value="NO">NO</option></select>
 
     <label>8. No capacitarse y actualizarse en el área donde desempeña su función</label>
-    <select name="q8"><option value="SI">SI</option><option value="NO">NO</option></select>
+    <select name="q8" required><option value="" selected disabled>-- Seleccione --</option><option value="SI">SI</option><option value="NO">NO</option></select>
 
     <button type="submit">Guardar</button>
 </form>
