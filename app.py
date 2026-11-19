@@ -625,6 +625,38 @@ def jornadas_toggle_encuesta(id_jornada, nombre):
     return redirect(request.referrer or url_for('jornadas'))
 
 
+@app.route('/jornadas/informe')
+@login_required
+@admin_required
+def jornadas_informe():
+    from informe_jornadas import generar_informe_pdf
+    sql = """SELECT j.id_jornada, j.nombre, j.fecha, j.estado,
+           COALESCE(q.n,0) AS quiz, COALESCE(c.n,0) AS ciudadanos, COALESCE(p.n,0) AS presaber
+    FROM jornadas j
+    LEFT JOIN (SELECT id_jornada, COUNT(*) n FROM preguntas            GROUP BY 1) q ON q.id_jornada=j.id_jornada
+    LEFT JOIN (SELECT id_jornada, COUNT(*) n FROM encuestas_ciudadanos GROUP BY 1) c ON c.id_jornada=j.id_jornada
+    LEFT JOIN (SELECT id_jornada, COUNT(*) n FROM presaber             GROUP BY 1) p ON p.id_jornada=j.id_jornada
+    ORDER BY j.fecha, j.id_jornada"""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(sql)
+        filas = []
+        for r in cur.fetchall():
+            if hasattr(r, 'keys'):
+                filas.append({str(k).lower(): r[k] for k in r.keys()})
+            else:
+                cols = [d[0].lower() for d in cur.description]
+                filas.append(dict(zip(cols, r)))
+    finally:
+        conn.close()
+    pdf = generar_informe_pdf(filas)
+    resp = make_response(pdf)
+    resp.headers['Content-Type'] = 'application/pdf'
+    resp.headers['Content-Disposition'] = 'attachment; filename=informe_jornadas_%s.pdf' % date.today().strftime('%Y%m%d')
+    return resp
+
+
 @app.route('/jornadas/<int:id_jornada>')
 @login_required
 @admin_required
