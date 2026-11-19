@@ -1009,10 +1009,10 @@ def ciudadanos():
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO encuestas_ciudadanos
-                (ID_ENCUESTA, USUARIO, FECHA, ESTUDIOS, OCUPACION,
-                 Pregunta_1, Pregunta_2, Pregunta_3, Pregunta_4,
-                 Pregunta_5, Pregunta_6, Pregunta_7, ID_JORNADA)
-                VALUES (UUID(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (USUARIO, FECHA, ESTUDIOS, OCUPACION,
+                 "Pregunta_1", "Pregunta_2", "Pregunta_3", "Pregunta_4",
+                 "Pregunta_5", "Pregunta_6", "Pregunta_7", ID_JORNADA)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 session['usuario'], f.get('fecha', date.today()),
                 f.get('estudios'), f.get('ocupacion'),
