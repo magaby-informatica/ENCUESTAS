@@ -132,7 +132,7 @@ def _preparar(respuestas, jornadas):
     for r in respuestas:
         k = _norm(r.get('organismo'))
         nombre = ' '.join(str(r.get('organismo') or '').split()) or 'Sin organismo'
-        o = orgs.setdefault(k, {'nombre': nombre, 'quiz': 0, 'presaber': 0,
+        o = orgs.setdefault(k, {'key': k, 'nombre': nombre, 'quiz': 0, 'presaber': 0,
                                 'total': 0, 'por_jornada': {}})
         jid = r['id_jornada']
         n = int(r.get('n') or 0)
@@ -147,10 +147,13 @@ def _preparar(respuestas, jornadas):
     return lista
 
 
-def generar_informe_organismos_pdf(respuestas, jornadas):
+def generar_informe_organismos_pdf(respuestas, jornadas, detalle=None):
     """respuestas: dicts id_jornada, organismo, tipo ('quiz'|'presaber'), n
     jornadas: dicts id_jornada, nombre, fecha (en orden cronologico)"""
     orgs = _preparar(respuestas, jornadas)
+    orgs, filtro = _filtrar(orgs)
+    con_det = detalle is not None or _modo_detalle()
+    det = (detalle if detalle is not None else _cargar_detalle()) if con_det else {}
     info_j = {j['id_jornada']: j for j in jornadas}
     ids_con_datos = [j['id_jornada'] for j in jornadas
                      if any(j['id_jornada'] in o['por_jornada'] for o in orgs)]
@@ -269,12 +272,15 @@ def generar_informe_organismos_pdf(respuestas, jornadas):
         ('ALIGN', (3, 0), (-1, -1), 'RIGHT'), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.25, BORDE)]))
     S.append(tj)
+    S.append(PageBreak())
+    if con_det:
+        S += _pdf_referencias(H2, H3, TXT, CEL)
 
     # ---------- 4. Detalle por organismo ----------
     S.append(PageBreak())
     S.append(Paragraph('Detalle por organismo', H2))
     for o in orgs:
-        S.append(CondPageBreak(15 * cm))
+        S.append(CondPageBreak(9 * cm))
         S.append(Paragraph(
             '%s &nbsp;<font size="12" color="#555555">- %s encuestas en %s jornada(s)</font>'
             % (escape(o['nombre']), _n(o['total']), _n(len(o['jornadas']))), H3))
@@ -298,6 +304,16 @@ def generar_informe_organismos_pdf(respuestas, jornadas):
         S.append(tt_)
         S.append(Spacer(1, 4))
         S.append(_barras_jornadas(o, jornadas))
+        if con_det:
+            dl = [det.get((o['key'], i)) for i in o['jornadas']]
+            S.append(Paragraph('Resumen del organismo (todas sus jornadas)', H3))
+            S += _pdf_resultados(_sumar([x for x in dl if x]), o['quiz'], o['presaber'], TXT)
+            for i, x in zip(o['jornadas'], dl):
+                j = info_j.get(i, {})
+                bloque = [Paragraph('Jornada %s · %s <font size="12" color="#555555">(%s)</font>'
+                                    % (i, escape(str(j.get('nombre') or '-')), _fecha(j.get('fecha'))), H3)]
+                bloque += _pdf_resultados(x, _pj(o, i, 'quiz'), _pj(o, i, 'presaber'), TXT)
+                S.append(KeepTogether(bloque))
 
     # ---------- Observaciones ----------
     obs = []
@@ -402,8 +418,18 @@ li{margin:4px 0}
 """
 
 
-def generar_informe_organismos_html(respuestas, jornadas, url_pdf=''):
+def generar_informe_organismos_html(respuestas, jornadas, url_pdf='', detalle=None):
+    from urllib.parse import quote
     orgs = _preparar(respuestas, jornadas)
+    orgs, filtro = _filtrar(orgs)
+    con_det = detalle is not None or _modo_detalle()
+    det = (detalle if detalle is not None else _cargar_detalle()) if con_det else {}
+    if url_pdf and con_det:
+        url_pdf = url_pdf + '&detalle=1'
+    if filtro and url_pdf:
+        url_pdf = url_pdf + '&org=' + quote(filtro)
+    q_ = ('detalle=1' if con_det else '')
+    q_org = ('&org=' + quote(filtro)) if filtro else ''
     info_j = {j['id_jornada']: j for j in jornadas}
     ids = [j['id_jornada'] for j in jornadas
            if any(j['id_jornada'] in o['por_jornada'] for o in orgs)]
@@ -418,13 +444,19 @@ def generar_informe_organismos_html(respuestas, jornadas, url_pdf=''):
     a('<!doctype html><html lang="es"><head><meta charset="utf-8">'
       '<meta name="viewport" content="width=device-width,initial-scale=1">'
       '<title>Informe por organismo - ENCUESTAS</title><style>%s</style></head><body>'
-      '<div class="hoja">' % _CSS)
+      '<div class="hoja">' % (_CSS + _CSS_EXTRA))
     a('<div class="barra-acc">'
       '')
     if url_pdf:
         a('<a class="btn" href="%s">⬇ Descargar PDF</a>' % _e(url_pdf))
+    if con_det:
+        a('<a class="btn sec" href="?%s">Ver resumido</a>' % q_org.lstrip('&'))
+    else:
+        a('<a class="btn sec" href="?detalle=1%s">Ver con detalle por jornada</a>' % q_org)
     a('<a class="btn sec" href="javascript:history.back()">← Volver</a></div>')
     a('<h1>Informe por organismo - ENCUESTAS</h1>')
+    if filtro:
+        a('<p class="sub"><b>Filtrado por organismo:</b> %s &nbsp;<a href="?%s">Ver todos</a></p>' % (_e(filtro), q_))
     a('<p class="sub">Alcaldía de Cali - Control Disciplinario. Generado el %s.</p>'
       % datetime.now().strftime('%d/%m/%Y %H:%M'))
     a('<div class="tarjetas">'
@@ -485,15 +517,17 @@ def generar_informe_organismos_html(respuestas, jornadas, url_pdf=''):
           '<td class="n">%s</td></tr>' % (i, _e(str(info_j[i].get('nombre') or '-')),
                                           _fecha(info_j[i].get('fecha')), _n(q), _n(p), _n(q + p)))
     a('</table>')
+    if con_det:
+        a(_html_referencias())
 
     # detalle
     a('<h2 class="corte">Detalle por organismo</h2>')
     for o in orgs:
         a('<div class="org"><h3>%s <span style="font-weight:normal;font-size:12pt;color:#555">'
-          '- %s encuestas en %s jornada(s)</span></h3>'
+          '- %s encuestas en %s jornada(s)</span> <a class="vl" style="font-size:12pt;font-weight:normal" href="?org=%s%s">ver solo este organismo</a></h3>'
           '<table><tr><th>ID</th><th>Jornada</th><th>Fecha</th><th class="n">Quiz</th>'
           '<th class="n">Presaber</th><th class="n">Total</th></tr>'
-          % (_e(o['nombre']), _n(o['total']), _n(len(o['jornadas']))))
+          % (_e(o['nombre']), _n(o['total']), _n(len(o['jornadas'])), quote(o['nombre']), ('&detalle=1' if con_det else '')))
         for i in o['jornadas']:
             pj = o['por_jornada'][i]
             a('<tr><td>%s</td><td>%s</td><td>%s</td><td class="n">%s</td><td class="n">%s</td>'
@@ -514,7 +548,19 @@ def generar_informe_organismos_html(respuestas, jornadas, url_pdf=''):
         a('</div><div class="etq">')
         for i in o['jornadas']:
             a('<span>J%s</span>' % i)
-        a('</div></div>')
+        a('</div>')
+        if con_det:
+            dl = [det.get((o['key'], i)) for i in o['jornadas']]
+            a('<div class="res-org"><h4>Resumen del organismo (todas sus jornadas)</h4>')
+            a(_html_resultados(_sumar([x for x in dl if x]), o['quiz'], o['presaber']))
+            a('</div>')
+            for i, x in zip(o['jornadas'], dl):
+                jj = info_j.get(i, {})
+                a('<div class="jor"><h4>Jornada %s · %s <small style="font-weight:normal;color:#555">(%s)</small></h4>'
+                  % (i, _e(str(jj.get('nombre') or '-')), _fecha(jj.get('fecha'))))
+                a(_html_resultados(x, _pj(o, i, 'quiz'), _pj(o, i, 'presaber')))
+                a('</div>')
+        a('</div>')
 
     # observaciones
     obs = []
@@ -532,3 +578,371 @@ def generar_informe_organismos_html(respuestas, jornadas, url_pdf=''):
         a('<h2>Observaciones</h2><ul>%s</ul>' % ''.join('<li>%s</li>' % _e(x) for x in obs))
     a('</div></body></html>')
     return ''.join(H)
+
+
+# =====================================================================
+#  RESULTADOS POR PREGUNTA (por organismo y por jornada)
+# =====================================================================
+CORRECTAS_QUIZ = {
+    'P1': 'b) Preventiva, Correctiva',
+    'P2': 'a) Verbal y Ordinario conforme a la Ley 2094 de 2021',
+    'P3': 'c) Gravísimas, Graves y Leves',
+    'P4': 'a) Servidores públicos, aunque se encuentren retirados del servicio',
+    'P5': 'd) Todas las anteriores',
+    'P6': 'a) Procuraduría General de la Nación, Personerías Municipales y Distritales',
+    'P7': 'b) Tiene poder sancionatorio / No tiene poder sancionatorio',
+    'P8': 'd) b y c son correctas.',
+}
+PRESABER_LABELS = {
+    'Q1': 'No tratar con respeto a las personas',
+    'Q2': 'Solicitar dádivas o beneficios',
+    'Q3': 'Ejecutar actos de violencia',
+    'Q4': 'No dedicar el tiempo laboral',
+    'Q5': 'Incumplir horario de trabajo',
+    'Q6': 'Omitir respuesta a peticiones',
+    'Q7': 'No acreditar requisitos del cargo',
+    'Q8': 'No capacitarse en su área',
+}
+QUIZ_NOMBRE = {
+    'P1': 'Funciones del Control',
+    'P2': 'Procedimientos',
+    'P3': 'Clasificación de faltas',
+    'P4': 'Sujetos disciplinables',
+    'P5': 'Medios de prueba',
+    'P6': 'Quién ejerce la acción',
+    'P7': 'Control Disc. vs Interno',
+    'P8': 'Auto inhibitorio',
+}
+QUIZ_TEXTO = {
+    'P1': '¿Qué funciones adelanta el Departamento Administrativo de Control Disciplinario Interno de Instrucción?',
+    'P2': '¿Mediante qué procedimientos se puede adelantar la acción disciplinaria?',
+    'P3': 'Las faltas disciplinarias se clasifican en:',
+    'P4': '¿Quiénes son sujetos disciplinables?',
+    'P5': '¿Cuáles son medios de prueba en la acción disciplinaria?',
+    'P6': '¿Quiénes ejercen la acción disciplinaria?',
+    'P7': 'Una diferencia entre Control Disciplinario Interno de Instrucción y Control Interno:',
+    'P8': 'El Auto Inhibitorio que profiera el Departamento Administrativo de Control Disciplinario:',
+}
+PRESABER_NOMBRE = {
+    'Q1': 'No tratar con respeto',
+    'Q2': 'Solicitar dádivas',
+    'Q3': 'Actos de violencia',
+    'Q4': 'No dedicar tiempo laboral',
+    'Q5': 'Incumplir horario',
+    'Q6': 'Omitir peticiones',
+    'Q7': 'No acreditar requisitos',
+    'Q8': 'No capacitarse',
+}
+C_SI = colors.HexColor('#1F3A5F')
+C_NO = colors.HexColor('#A9B8CC')
+
+
+def _vacio():
+    return {'p': {c: [0, 0] for c in CORRECTAS_QUIZ},
+            'q': {c: [0, 0] for c in PRESABER_LABELS},
+            'cq': {'SI': 0, 'NO': 0}, 'cp': {'SI': 0, 'NO': 0}}
+
+
+def _cargar_detalle():
+    """Lee de la base los resultados por (organismo, jornada). Si falla, devuelve {}."""
+    det = {}
+    try:
+        from db import get_connection
+        conn = get_connection()
+    except Exception:
+        return det
+
+    def slot(r):
+        return det.setdefault((_norm(r['organismo']), r['id_jornada']), _vacio())
+
+    try:
+        cur = conn.cursor()
+        for col, ok in CORRECTAS_QUIZ.items():
+            c = col.lower()
+            cur.execute("SELECT id_jornada, nombre_organismo AS organismo, %s AS resp, COUNT(*) AS n "
+                        "FROM preguntas WHERE id_jornada IS NOT NULL AND %s IS NOT NULL "
+                        "GROUP BY 1, 2, 3" % (c, c))
+            for r in cur.fetchall():
+                s = slot(r)
+                n = int(r['n'])
+                s['p'][col][1] += n
+                if ok.lower() in str(r['resp']).lower():
+                    s['p'][col][0] += n
+        for col in PRESABER_LABELS:
+            c = col.lower()
+            cur.execute("SELECT id_jornada, organismo, %s AS resp, COUNT(*) AS n "
+                        "FROM presaber WHERE id_jornada IS NOT NULL AND %s IS NOT NULL "
+                        "GROUP BY 1, 2, 3" % (c, c))
+            for r in cur.fetchall():
+                s = slot(r)
+                v = str(r['resp']).strip().upper()
+                if v == 'SI':
+                    s['q'][col][0] += int(r['n'])
+                elif v == 'NO':
+                    s['q'][col][1] += int(r['n'])
+        cur.execute("SELECT id_jornada, nombre_organismo AS organismo, capacitacion_ley_disciplinaria AS resp, "
+                    "COUNT(*) AS n FROM preguntas WHERE id_jornada IS NOT NULL GROUP BY 1, 2, 3")
+        for r in cur.fetchall():
+            v = str(r['resp']).strip().upper()
+            if v in ('SI', 'NO'):
+                slot(r)['cq'][v] += int(r['n'])
+        cur.execute("SELECT id_jornada, organismo, capacitacion_ley AS resp, COUNT(*) AS n "
+                    "FROM presaber WHERE id_jornada IS NOT NULL GROUP BY 1, 2, 3")
+        for r in cur.fetchall():
+            v = str(r['resp']).strip().upper()
+            if v in ('SI', 'NO'):
+                slot(r)['cp'][v] += int(r['n'])
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return det
+
+
+def _sumar(lista):
+    t = _vacio()
+    for d in lista:
+        for c in t['p']:
+            t['p'][c][0] += d['p'][c][0]
+            t['p'][c][1] += d['p'][c][1]
+        for c in t['q']:
+            t['q'][c][0] += d['q'][c][0]
+            t['q'][c][1] += d['q'][c][1]
+        for k in ('SI', 'NO'):
+            t['cq'][k] += d['cq'][k]
+            t['cp'][k] += d['cp'][k]
+    return t
+
+
+def _acierto(d):
+    ok = sum(v[0] for v in d['p'].values())
+    tot = sum(v[1] for v in d['p'].values())
+    return (ok * 100.0 / tot) if tot else None
+
+
+def _capacitados(d):
+    si = d['cq']['SI'] + d['cp']['SI']
+    tot = si + d['cq']['NO'] + d['cp']['NO']
+    return si, tot
+
+
+def _modo_detalle():
+    try:
+        from flask import request
+        return request.args.get('detalle') == '1'
+    except Exception:
+        return False
+
+
+def _org_filtro():
+    try:
+        from flask import request
+        return ' '.join((request.args.get('org') or '').split()).upper()
+    except Exception:
+        return ''
+
+
+def _filtrar(orgs):
+    f = _org_filtro()
+    if not f:
+        return orgs, ''
+    return [o for o in orgs if f in _norm(o['nombre'])], f
+
+
+def _pj(o, jid, tipo):
+    return o['por_jornada'].get(jid, {}).get(tipo, 0)
+
+
+# ---------------------------- HTML ----------------------------------
+def _html_resultados(d, nq, npres):
+    d = d or _vacio()
+    ac = _acierto(d)
+    si, tot = _capacitados(d)
+    h = ['<div class="mini">'
+         '<div class="tarj"><b>%s</b>total de asistentes (quiz + presaber)</div>'
+         '<div class="tarj"><b>%s</b>participantes quiz</div>'
+         '<div class="tarj"><b>%s</b>acierto global del quiz</div>'
+         '<div class="tarj"><b>%s</b>participantes presaber</div>'
+         '<div class="tarj"><b>%s</b>capacitados en ley disciplinaria</div></div>'
+         % (_n(nq + npres), _n(nq), ('%.0f%%' % ac) if ac is not None else '—', _n(npres),
+            ('%s de %s' % (_n(si), _n(tot))) if tot else '—')]
+    h.append('<div class="res2"><div><h5>Quiz · % de acierto por pregunta</h5>')
+    for c, (ok, t) in d['p'].items():
+        pct = ok * 100.0 / t if t else 0
+        h.append('<div class="rb"><span class="rl" title="%s">%s</span><span class="rp"><i style="width:%.1f%%"></i></span>'
+                 '<span class="rv">%s <small>(%s/%s)</small></span></div>'
+                 % (_e(QUIZ_TEXTO[c]), _e(QUIZ_NOMBRE[c]), pct, ('%.0f%%' % pct) if t else '—', _n(ok), _n(t)))
+    h.append('</div><div><h5>Presaber · % SI / NO por conducta</h5>')
+    for c, label in PRESABER_LABELS.items():
+        s, n = d['q'][c]
+        t = s + n
+        ps = s * 100.0 / t if t else 0
+        pn = n * 100.0 / t if t else 0
+        h.append('<div class="rb"><span class="rl" title="%s">%s</span><span class="rp"><i class="si" style="width:%.1f%%"></i>'
+                 '<i class="no" style="width:%.1f%%"></i></span><span class="rv">SI %.0f%% · NO %.0f%%</span></div>'
+                 % (_e(label), _e(PRESABER_NOMBRE[c]), ps, pn, ps, pn))
+    h.append('</div></div>')
+    return ''.join(h)
+
+
+def _html_referencias():
+    h = ['<h2>Referencia de preguntas</h2><h5>Quiz · pregunta y respuesta correcta</h5><table>'
+         '<tr><th>Nombre</th><th>Pregunta</th><th>Respuesta correcta</th></tr>']
+    for c, t in CORRECTAS_QUIZ.items():
+        h.append('<tr><td><b>%s</b></td><td>%s</td><td>%s</td></tr>' % (_e(QUIZ_NOMBRE[c]), _e(QUIZ_TEXTO[c]), _e(t)))
+    h.append('</table><h5>Presaber · conducta consultada (responde SI / NO)</h5><table>'
+             '<tr><th>Nombre</th><th>Conducta</th></tr>')
+    for c, t in PRESABER_LABELS.items():
+        h.append('<tr><td><b>%s</b></td><td>%s</td></tr>' % (_e(PRESABER_NOMBRE[c]), _e(t)))
+    h.append('</table>')
+    return ''.join(h)
+
+
+_CSS_EXTRA = """
+h4{font-size:13pt;color:#1F3A5F;margin:18px 0 6px}
+h5{font-size:12pt;margin:8px 0 6px;color:#1b2430}
+.mini{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0}
+.mini .tarj{min-width:140px;padding:8px 12px}
+.mini .tarj b{font-size:16pt}
+.res2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.org{page-break-inside:auto;break-inside:auto}
+@media print{.vl{display:none}}
+.rb{display:flex;align-items:center;gap:8px;margin:4px 0}
+.rl{width:190px;font-weight:bold;flex:none}
+.rp{flex:1;display:flex;height:20px;background:#eef2f7;border-radius:3px;overflow:hidden}
+.rp i{display:block;height:100%;background:#1F3A5F}
+.rp i.no{background:#A9B8CC}
+.rv{width:120px;flex:none;font-size:12pt}
+.jor{border-top:1px solid #dfe4ec;margin-top:12px;padding-top:4px;page-break-inside:avoid;break-inside:avoid}
+.res-org{background:#f7f9fc;border-radius:8px;padding:6px 12px 10px;margin-top:12px}
+@media (max-width:900px){.res2{grid-template-columns:1fr}}
+"""
+
+
+# ---------------------------- PDF (reportlab) -----------------------
+def _chart_quiz(d):
+    W = 12.0 * cm
+    H = 0.64 * cm * len(CORRECTAS_QUIZ) + 1.1 * cm
+    dr = Drawing(W, H)
+    bc = HorizontalBarChart()
+    bc.x = 4.9 * cm
+    bc.y = 0.7 * cm
+    bc.width = W - 4.9 * cm - 1.9 * cm
+    bc.height = H - 0.9 * cm
+    rev = list(reversed(list(CORRECTAS_QUIZ)))
+    bc.data = [[(d['p'][c][0] * 100.0 / d['p'][c][1]) if d['p'][c][1] else 0 for c in rev]]
+    bc.categoryAxis.categoryNames = [QUIZ_NOMBRE[c] for c in rev]
+    bc.categoryAxis.labels.fontName = 'Helvetica'
+    bc.categoryAxis.labels.fontSize = 12
+    bc.categoryAxis.visibleTicks = 0
+    bc.valueAxis.valueMin = 0
+    bc.valueAxis.valueMax = 100
+    bc.valueAxis.valueStep = 25
+    bc.valueAxis.labels.fontName = 'Helvetica'
+    bc.valueAxis.labels.fontSize = 12
+    bc.valueAxis.visibleGrid = 1
+    bc.valueAxis.gridStrokeColor = colors.HexColor('#E3E7ED')
+    bc.bars[0].fillColor = C_QUIZ
+    bc.bars.strokeColor = None
+    bc.barWidth = 11
+    bc.barLabelFormat = '%0.0f%%'
+    bc.barLabels.fontName = 'Helvetica'
+    bc.barLabels.fontSize = 12
+    bc.barLabels.boxAnchor = 'w'
+    bc.barLabels.dx = 4
+    dr.add(bc)
+    return dr
+
+
+def _chart_pres(d):
+    W = 12.0 * cm
+    H = 0.64 * cm * len(PRESABER_LABELS) + 1.1 * cm
+    dr = Drawing(W, H)
+    bc = HorizontalBarChart()
+    bc.x = 4.9 * cm
+    bc.y = 0.7 * cm
+    bc.width = W - 4.9 * cm - 0.5 * cm
+    bc.height = H - 0.9 * cm
+    rev = list(reversed(list(PRESABER_LABELS)))
+    si, no = [], []
+    for c in rev:
+        s, n = d['q'][c]
+        t = s + n
+        si.append(s * 100.0 / t if t else 0)
+        no.append(n * 100.0 / t if t else 0)
+    bc.data = [si, no]
+    bc.categoryAxis.categoryNames = [PRESABER_NOMBRE[c] for c in rev]
+    bc.categoryAxis.labels.fontName = 'Helvetica'
+    bc.categoryAxis.labels.fontSize = 12
+    bc.categoryAxis.style = 'stacked'
+    bc.categoryAxis.visibleTicks = 0
+    bc.valueAxis.valueMin = 0
+    bc.valueAxis.valueMax = 100
+    bc.valueAxis.valueStep = 25
+    bc.valueAxis.labels.fontName = 'Helvetica'
+    bc.valueAxis.labels.fontSize = 12
+    bc.valueAxis.visibleGrid = 1
+    bc.valueAxis.gridStrokeColor = colors.HexColor('#E3E7ED')
+    bc.bars[0].fillColor = C_SI
+    bc.bars[1].fillColor = C_NO
+    bc.bars.strokeColor = None
+    bc.barWidth = 11
+    bc.barLabelFormat = lambda v: '' if v < 14 else '%d%%' % round(v)
+    bc.barLabels.fontName = 'Helvetica'
+    bc.barLabels.fontSize = 11
+    bc.barLabels.boxAnchor = 'e'
+    bc.barLabels.dx = -3
+    bc.barLabels.fillColor = colors.black
+    bc.barLabels[0].fillColor = colors.white
+    dr.add(bc)
+    return dr
+
+
+def _pdf_resultados(d, nq, npres, TXT):
+    d = d or _vacio()
+    ac = _acierto(d)
+    si, tot = _capacitados(d)
+    t1 = Paragraph('Total de asistentes: <b>%s</b> · Quiz: <b>%s</b> · acierto global <b>%s</b>'
+                   % (_n(nq + npres), _n(nq), ('%.0f%%' % ac) if ac is not None else '—'), TXT)
+    t2 = Paragraph('Presaber: <b>%s</b> participantes · capacitados en la ley: <b>%s</b>'
+                   % (_n(npres), ('%s de %s' % (_n(si), _n(tot))) if tot else '—'), TXT)
+    tb = Table([[t1, t2]], colWidths=[12.4 * cm, 12.4 * cm])
+    tb.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), GRIS), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                            ('LEFTPADDING', (0, 0), (-1, -1), 6), ('TOPPADDING', (0, 0), (-1, -1), 5),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 5)]))
+    leg = Drawing(12.0 * cm, 0.5 * cm)
+    leg.add(Rect(4.9 * cm, 1, 9, 9, fillColor=C_SI, strokeColor=None))
+    leg.add(String(4.9 * cm + 14, 1, 'SI', fontName='Helvetica', fontSize=12))
+    leg.add(Rect(4.9 * cm + 50, 1, 9, 9, fillColor=C_NO, strokeColor=None))
+    leg.add(String(4.9 * cm + 64, 1, 'NO', fontName='Helvetica', fontSize=12))
+    ch = Table([[[Paragraph('<b>Quiz · % de acierto por pregunta</b>', TXT), _chart_quiz(d)],
+                 [Paragraph('<b>Presaber · % SI / NO por conducta</b>', TXT), leg, _chart_pres(d)]]],
+               colWidths=[12.4 * cm, 12.4 * cm])
+    ch.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 0)]))
+    return [tb, Spacer(1, 4), ch]
+
+
+def _pdf_referencias(H2, H3, TXT, CEL):
+    out = [Paragraph('Referencia de preguntas', H2)]
+    q = [['Nombre', 'Pregunta', 'Respuesta correcta']] + \
+        [[Paragraph('<b>%s</b>' % escape(QUIZ_NOMBRE[c]), CEL), Paragraph(escape(QUIZ_TEXTO[c]), CEL),
+          Paragraph(escape(t), CEL)] for c, t in CORRECTAS_QUIZ.items()]
+    p = [['Nombre', 'Conducta consultada (SI / NO)']] + \
+        [[Paragraph('<b>%s</b>' % escape(PRESABER_NOMBRE[c]), CEL), Paragraph(escape(t), CEL)]
+         for c, t in PRESABER_LABELS.items()]
+    est = TableStyle([('BACKGROUND', (0, 0), (-1, 0), NAVY), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                      ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, -1), 12),
+                      ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('GRID', (0, 0), (-1, -1), 0.25, BORDE),
+                      ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, GRIS])])
+    t1 = Table(q, colWidths=[5.0 * cm, 10.3 * cm, 9.0 * cm], repeatRows=1)
+    t1.setStyle(est)
+    t2 = Table(p, colWidths=[5.0 * cm, 19.3 * cm], repeatRows=1)
+    t2.setStyle(est)
+    out += [t1, Spacer(1, 10), t2]
+    return out
