@@ -18,7 +18,7 @@
         <select name="id_jornada">
             <option value="">-- Sin jornada --</option>
             {% for j in jornadas_disponibles %}
-            <option value="{{ j.ID_JORNADA }}">{{ j.NOMBRE }} ({{ j.FECHA }})</option>
+            <option value="{{ j.ID_JORNADA }}">{{ j.ID_JORNADA }} - {{ j.NOMBRE }} ({{ j.FECHA }})</option>
             {% endfor %}
         </select>
     {% endif %}
