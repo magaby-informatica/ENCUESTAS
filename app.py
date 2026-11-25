@@ -1032,7 +1032,7 @@ def ciudadanos():
 
     if request.method == 'POST':
         f = request.form
-        id_jornada = jornada['ID_JORNADA'] if jornada else None
+        id_jornada = jornada['ID_JORNADA'] if jornada else (int(f.get('id_jornada')) if (f.get('id_jornada') or '').isdigit() else None)
         conn = get_connection()
         with conn.cursor() as cur:
             cur.execute("""
@@ -1114,7 +1114,7 @@ def preguntas():
 
     if request.method == 'POST':
         f = request.form
-        id_jornada = jornada['ID_JORNADA'] if jornada else None
+        id_jornada = jornada['ID_JORNADA'] if jornada else (int(f.get('id_jornada')) if (f.get('id_jornada') or '').isdigit() else None)
         with conn.cursor() as cur:
             nombre_org = None
             if f.get('organismo_p'):
@@ -1211,7 +1211,7 @@ def presaber():
 
     if request.method == 'POST':
         f = request.form
-        id_jornada = jornada['ID_JORNADA'] if jornada else None
+        id_jornada = jornada['ID_JORNADA'] if jornada else (int(f.get('id_jornada')) if (f.get('id_jornada') or '').isdigit() else None)
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO presaber
